@@ -1255,6 +1255,7 @@ public:
 // voxel world engine
 #include "world.h"
 #include "worldapi.h"
+#include "world_to_obj.h"
 
 // game
 class Game

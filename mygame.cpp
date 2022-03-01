@@ -9,7 +9,11 @@ Game* CreateGame() { return new MyGame(); }
 void MyGame::Init()
 {
 	// clear world geometry
-	ClearWorld();
+	GetWorld()->Clear();
+	uint a = LoadSprite("assets/corvette.vx");
+	StampSpriteTo(a, 0, 0, 0);
+
+	WorldToOBJ(GetWorld(), "test.obj");
 }
 
 // -----------------------------------------------------------
