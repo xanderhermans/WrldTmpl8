@@ -55,4 +55,6 @@ bld/
 
 camera.dat
 
+buildlog.txt
+
 *.user

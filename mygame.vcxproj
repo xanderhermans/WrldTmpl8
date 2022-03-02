@@ -132,6 +132,7 @@
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">precomp.h</PrecompiledHeaderFile>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">precomp.h</PrecompiledHeaderFile>
     </ClCompile>
+    <ClCompile Include="world_to_obj.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="cl\tools.cl" />
@@ -142,6 +143,7 @@
     <ClInclude Include="template\precomp.h" />
     <ClInclude Include="template\world.h" />
     <ClInclude Include="template\worldapi.h" />
+    <ClInclude Include="world_to_obj.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="cl\kernels.cl" />

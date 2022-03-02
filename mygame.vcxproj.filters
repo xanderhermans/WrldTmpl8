@@ -8,6 +8,9 @@
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="mygame.cpp" />
+    <ClCompile Include="world_to_obj.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">
@@ -31,6 +34,9 @@
     </ClInclude>
     <ClInclude Include="cl\tools.cl">
       <Filter>template\cl</Filter>
+    </ClInclude>
+    <ClInclude Include="world_to_obj.h">
+      <Filter>template</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -1,15 +1,31 @@
 #include "precomp.h"
+#include <unordered_map>
 #define SIMPLECULL
 
 using namespace Tmpl8;
 
-void WorldToOBJ(Tmpl8::World* world, std::string filename)
+int create_vertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
+{
+	int hash = v.x + v.z * GRIDWIDTH * BRICKDIM + v.y * GRIDWIDTH * BRICKDIM * GRIDDEPTH * BRICKDIM;
+	auto search = map.find(hash);
+	if (search != map.end()) 
+	{
+		return search->second;
+	}
+	int index = vertices.size();
+	map.insert({ hash, index });
+	vertices.push_back(v);
+	return index;
+}
+
+void Tmpl8::WorldToOBJ(Tmpl8::World* world, std::string filename)
 {
 	int sizex = GRIDWIDTH * BRICKDIM;
 	int sizey = GRIDHEIGHT * BRICKDIM;
 	int sizez = GRIDDEPTH * BRICKDIM;
 
-	vector<int3> vertices;
+	unordered_map<int, int> vertex_indices;
+	vector<int3> _vertices;
 	vector<int3> indices;
 
 	for (uint y = 0; y < sizey; y++)
@@ -34,33 +50,22 @@ void WorldToOBJ(Tmpl8::World* world, std::string filename)
 					}
 #endif // SIMPLECULL
 
-					int vi = vertices.size() - 1;
-					int vi1 = ++vi;
-					int vi2 = ++vi;
-					int vi3 = ++vi;
-					int vi4 = ++vi;
-					int vi5 = ++vi;
-					int vi6 = ++vi;
-					int vi7 = ++vi;
-					int vi8 = ++vi;
-
 					int3 v1 = int3(x, y, z);
+					int vi1 = create_vertex(vertex_indices, _vertices, v1);
 					int3 v2 = int3(x, y, z + 1);
+					int vi2 = create_vertex(vertex_indices, _vertices, v2);
 					int3 v3 = int3(x + 1, y, z + 1);
+					int vi3 = create_vertex(vertex_indices, _vertices, v3);
 					int3 v4 = int3(x + 1, y, z);
+					int vi4 = create_vertex(vertex_indices, _vertices, v4);
 					int3 v5 = int3(x, y + 1, z);
+					int vi5 = create_vertex(vertex_indices, _vertices, v5);
 					int3 v6 = int3(x, y + 1, z + 1);
+					int vi6 = create_vertex(vertex_indices, _vertices, v6);
 					int3 v7 = int3(x + 1, y + 1, z + 1);
+					int vi7 = create_vertex(vertex_indices, _vertices, v7);
 					int3 v8 = int3(x + 1, y + 1, z);
-
-					vertices.push_back(v1);
-					vertices.push_back(v2);
-					vertices.push_back(v3);
-					vertices.push_back(v4);
-					vertices.push_back(v5);
-					vertices.push_back(v6);
-					vertices.push_back(v7);
-					vertices.push_back(v8);
+					int vi8 = create_vertex(vertex_indices, _vertices, v8);
 
 					int3 f1 = int3(vi8, vi4, vi1);
 					int3 f2 = int3(vi1, vi5, vi8);
@@ -92,20 +97,26 @@ void WorldToOBJ(Tmpl8::World* world, std::string filename)
 		}
 	}
 
-	printf("%d vertices with %d faces\r\n", int(vertices.size()), int(indices.size()));
+	printf("%d vertices with %d faces\r\n", int(_vertices.size()), int(indices.size()));
 
-	ofstream myfile;
-	myfile.open(filename);
-	myfile << "# " << vertices.size() << " vetices " << indices.size() << " faces" << endl;
-	myfile << "# vertices" << endl;
-	for (int3& v : vertices)
+	FILE* file = fopen(filename.c_str(), "w");
+
+	if (!file)
 	{
-		myfile << "v " << v.x / 10.0f << " " << v.y / 10.0f << " " << v.z / 10.0f << endl;
+		printf("write_obj: can't write data file \"%s\".\n", filename.c_str());
+		return;
 	}
-	myfile << "# faces" << endl;
-	for (int3& f : indices)
+
+	fprintf(file, "# %d vertices %d faces\n", int(_vertices.size()), int(indices.size()));
+	for (int i = 0; i < _vertices.size();i ++)
 	{
-		myfile << "f " << f.x + 1 << " " << f.y + 1 << " " << f.z + 1 << endl;
+		int3 v = _vertices[i];
+		fprintf(file, "v %d %d %d\n", v.x, v.y, v.z); //more compact: remove trailing zeros
 	}
-	myfile.close();
+	for (int i = 0; i < indices.size(); i++)
+	{
+		int3 tri = indices[i];
+		fprintf(file, "f %d %d %d\n", tri.x, tri.y, tri.z);
+	}
+	fclose(file);
 }
