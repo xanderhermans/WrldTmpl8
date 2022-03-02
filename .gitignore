@@ -58,3 +58,5 @@ camera.dat
 buildlog.txt
 
 *.user
+
+*.mtl

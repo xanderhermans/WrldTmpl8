@@ -13,7 +13,7 @@ void MyGame::Init()
 	uint a = LoadSprite("assets/corvette.vx");
 	StampSpriteTo(a, 0, 0, 0);
 
-	WorldToOBJ(GetWorld(), "test.obj");
+	WorldToOBJ(GetWorld(), "test");
 }
 
 // -----------------------------------------------------------
