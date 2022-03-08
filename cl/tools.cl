@@ -114,6 +114,11 @@ float3 SampleSky( const float3 T, __global float4* sky, uint w, uint h )
 	return s.xyz;
 }
 
+bool IsEmitter(const uint v)
+{
+	return (v & 0x8000) == 0x8000;
+}
+
 // convert a voxel color to floating point rgb
 float3 ToFloatRGB( const uint v )
 {

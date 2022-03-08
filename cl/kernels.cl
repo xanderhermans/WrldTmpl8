@@ -57,8 +57,19 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 	const float3 D = GenerateCameraRay( screenPos, params );
 	const uint voxel = TraceRay( (float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
 	const float skyLightScale = params->skyLightScale;
+
 	// visualize result: simple hardcoded directional lighting using arbitrary unit vector
-	if (voxel == 0) return (float4)(SampleSky( (float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight ), 1e20f);
+
+	if (voxel == 0)
+	{
+		return 0;
+		//return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
+	}
+	if (IsEmitter(voxel))
+	{
+		return (float4)(ToFloatRGB(voxel), 1e20f);
+	}
+
 	const float3 BRDF1 = INVPI * ToFloatRGB( voxel );
 	float3 incoming = (float3)(0, 0, 0);
 	const int x = (int)screenPos.x, y = (int)screenPos.y;
@@ -72,29 +83,33 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 		const float4 R = (float4)(DiffuseReflectionCosWeighted( r0, r1, N ), 1);
 		uint side2;
 		float dist2;
-		const uint voxel2 = TraceRay( I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12 );
+		const uint voxel2 = TraceRay( I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH );
 		const float3 N2 = VoxelNormal( side2, R.xyz );
-		if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
+		if (IsEmitter(voxel2))
 		{
-			if (voxel2 == 0) incoming += skyLightScale * SampleSky( (float3)(R.x, R.z, R.y), sky, params->skyWidth, params->skyHeight ); else /* secondary hit */
-			{
-				const float4 R2 = (float4)(DiffuseReflectionCosWeighted( r0, r1, N2 ), 1);
-				incoming += INVPI * ToFloatRGB( voxel2 ) * skyLightScale * SampleSky( (float3)(R2.x, R2.z, R2.y), sky, params->skyWidth, params->skyHeight );
-			}
+			incoming += INVPI * ToFloatRGB(voxel2);
 		}
-		else
-		{
-			float3 toAdd = (float3)skyLightScale, M = N;
-			if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB( voxel2 ), M = N2;
-			float4 sky;
-			if (M.x < -0.9f) sky = params->skyLight[0];
-			if (M.x > 0.9f) sky = params->skyLight[1];
-			if (M.y < -0.9f) sky = params->skyLight[2];
-			if (M.y > 0.9f) sky = params->skyLight[3];
-			if (M.z < -0.9f) sky = params->skyLight[4];
-			if (M.z > 0.9f) sky = params->skyLight[5];
-			incoming += toAdd * sky.xyz;
-		}
+		//if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
+		//{
+		//	if (voxel2 == 0) incoming += skyLightScale * SampleSky( (float3)(R.x, R.z, R.y), sky, params->skyWidth, params->skyHeight ); else /* secondary hit */
+		//	{
+		//		const float4 R2 = (float4)(DiffuseReflectionCosWeighted( r0, r1, N2 ), 1);
+		//		incoming += INVPI * ToFloatRGB( voxel2 ) * skyLightScale * SampleSky( (float3)(R2.x, R2.z, R2.y), sky, params->skyWidth, params->skyHeight );
+		//	}
+		//}
+		//else
+		//{
+		//	float3 toAdd = (float3)skyLightScale, M = N;
+		//	if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB( voxel2 ), M = N2;
+		//	float4 sky;
+		//	if (M.x < -0.9f) sky = params->skyLight[0];
+		//	if (M.x > 0.9f) sky = params->skyLight[1];
+		//	if (M.y < -0.9f) sky = params->skyLight[2];
+		//	if (M.y > 0.9f) sky = params->skyLight[3];
+		//	if (M.z < -0.9f) sky = params->skyLight[4];
+		//	if (M.z > 0.9f) sky = params->skyLight[5];
+		//	incoming += toAdd * sky.xyz;
+		//}
 	}
 	return (float4)(BRDF1 * incoming * (1.0f / GIRAYS), dist);
 }

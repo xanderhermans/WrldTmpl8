@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include <unordered_map>
 #include <unordered_set>
+#include <filesystem>
 #define CULL_DUPE_VERTICES
 #define CULL_OCCLUDED_FACES
 
@@ -19,6 +20,11 @@ struct Mesh
 	vector<int3> vertices;
 	vector<Tri> tris;
 };
+
+bool IsEmitter(const uint v)
+{
+	return (v >> 12 & 15) > 0;
+}
 
 // convert a voxel color to floating point rgb // from tools.cl
 float3 ToFloatRGB(const uint v)
@@ -164,7 +170,12 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 
 void SaveMeshToObj(Mesh& mesh, string filename)
 {
-	printf("Start writing to file %s\r\n", filename.c_str());
+	filesystem::path path = filename;
+	if (path.has_parent_path())
+	{
+		filesystem::create_directories(path.parent_path());
+	}
+	printf("Start writing to file %s\r\n", path.string().c_str());
 
 	// We could switch materials for every face but that would add a lot of unnecessary lines to the obj files so we sort the faces per material.
 	unordered_map<ushort, vector<int3>*> tris_per_mat;
@@ -185,12 +196,12 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 		_tris->push_back(f.f);
 	}
 
-	string matfilename = filename + ".mtl";
-	FILE* matfile = fopen(matfilename.c_str(), "w");
+	filesystem::path matfilename = path.replace_extension(".mtl");
+	FILE* matfile = fopen(matfilename.string().c_str(), "w");
 
 	if (!matfile)
 	{
-		printf("write_mtl: can't write data file \"%s\".\n", matfilename.c_str());
+		printf("write_mtl: can't write data file \"%s\".\n", matfilename.string().c_str());
 		return;
 	}
 
@@ -202,16 +213,20 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 
 		float3 kd = ToFloatRGB(col);
 		fprintf(matfile, "Kd %f %f %f\n", kd.x, kd.y, kd.z);
+		if (IsEmitter(col))
+		{
+			fprintf(matfile, "Ke %f %f %f\n", kd.x, kd.y, kd.z);
+		}
 
 		fprintf(matfile, "\n");
 	}
 
-	string objfilename = filename + ".obj";
-	FILE* objfile = fopen(objfilename.c_str(), "w");
+	filesystem::path objfilename = path.replace_extension(".obj");
+	FILE* objfile = fopen(objfilename.string().c_str(), "w");
 
 	if (!objfile)
 	{
-		printf("write_obj: can't write data file \"%s\".\n", objfilename.c_str());
+		printf("write_obj: can't write data file \"%s\".\n", objfilename.string().c_str());
 		return;
 	}
 
@@ -236,7 +251,7 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 
 	fclose(objfile);
 
-	printf("Done! Written to file %s\r\n", objfilename.c_str());
+	printf("Done! Written to file %s\r\n", objfilename.string().c_str());
 }
 
 void Tmpl8::WorldToOBJ(Tmpl8::World* world, std::string filename)

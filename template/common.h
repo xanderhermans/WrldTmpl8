@@ -38,7 +38,7 @@
 #define PANINI		0	// 0 to disable, 1 to enable
 
 // TAA, as in https://www.shadertoy.com/view/3sfBWs
-#define TAA			1	// 0 to disable, 1 to enable
+#define TAA			0	// 0 to disable, 1 to enable
 
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
