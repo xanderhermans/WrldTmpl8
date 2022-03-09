@@ -18,6 +18,8 @@ public:
 	void KeyDown( int key ) { /* implement if you want to handle keys */ }
 	// data members
 	int2 mousePos;
+
+	void HandleControls(float deltaTime);
 };
 
 } // namespace Tmpl8

@@ -89,11 +89,12 @@ World::World( const uint targetID )
 	history[0] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	history[1] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	tmpFrame = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
-#if TAA == 1
+#if TAA == 1 || ACCUMULATOR == 1
 	renderer = new Kernel( "cl/kernels.cl", "renderTAA" );
 #else
 	renderer = new Kernel( "cl/kernels.cl", "renderNoTAA" );
 #endif
+	accumulatorFinalizer = new Kernel(renderer->GetProgram(), "finalizeA");
 	finalizer = new Kernel( renderer->GetProgram(), "finalize" );
 	unsharpen = new Kernel( renderer->GetProgram(), "unsharpen" );
 	committer = new Kernel( renderer->GetProgram(), "commit" );
@@ -1509,6 +1510,15 @@ void World::Render()
 		params.skyHeight = skySize.y;
 		static uint frame = 0;
 		params.frame = frame++ & 255;
+		static uint framecount = 0;
+		if (dirty)
+		{
+			framecount = 0;
+		}
+		params.framecount = framecount++;
+		params.accumulate = accumulate;
+		params.dirty = dirty;
+
 		for (int i = 0; i < 6; i++) params.skyLight[i] = skyLight[i];
 		params.skyLightScale = Game::skyDomeLightScale;
 		// get render parameters to GPU and invoke kernel asynchronously
@@ -1516,8 +1526,8 @@ void World::Render()
 		if (!screen)
 		{
 			screen = new Buffer( targetTextureID, Buffer::TARGET );
-		#if TAA == 0
-			renderer->SetArgument( 0, screen );
+		#if TAA == 0 && ACCUMULATOR == 0
+			renderer->SetArgument( 0, screen);
 		#else
 			renderer->SetArgument( 0, tmpFrame );
 		#endif
@@ -1536,7 +1546,14 @@ void World::Render()
 		#endif
 		}
 		static int histIn = 0, histOut = 1;
-	#if TAA == 0
+	#if ACCUMULATOR == 1
+		renderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		accumulatorFinalizer->SetArgument(0, screen);
+		accumulatorFinalizer->SetArgument(1, tmpFrame);
+		accumulatorFinalizer->SetArgument(2, history[histIn]);
+		accumulatorFinalizer->SetArgument(3, paramBuffer);
+		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+	#elif TAA == 0
 		renderer->Run( screen, make_int2( 8, 16 ), 0, &renderDone );
 	#else
 		// renderer->Run( screen, make_int2( 8, 16 ) );

@@ -315,7 +315,7 @@ void KeyEventCallback( GLFWwindow* window, int key, int scancode, int action, in
 	else if (action == GLFW_RELEASE) { if (game) if (key >= 0) game->KeyUp( key ); }
 }
 void CharEventCallback( GLFWwindow* window, uint code ) { /* nothing here yet */ }
-void WindowFocusCallback( GLFWwindow* window, int focused ) { hasFocus = (focused == GL_TRUE); }
+void WindowFocusCallback(GLFWwindow* window, int focused) { hasFocus = (focused == GL_TRUE); if (game != nullptr) { game->isFocused = (focused == GL_TRUE); } }
 void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 {
 	if (action == GLFW_PRESS) { if (game) game->MouseDown( button ); }
@@ -576,7 +576,8 @@ void _CheckGL( const char* f, int l )
 		else if (error == 0x502) errStr = "INVALID OPERATION";
 		else if (error == 0x501) errStr = "INVALID VALUE";
 		else if (error == 0x506) errStr = "INVALID FRAMEBUFFER OPERATION";
-		FatalError( "GL error %d: %s at %s:%d\n", error, errStr, f, l );
+		printf("GL error %d: %s at %s:%d\n", error, errStr, f, l);
+		//FatalError( "GL error %d: %s at %s:%d\n", error, errStr, f, l );
 	}
 }
 

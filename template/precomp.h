@@ -1270,6 +1270,7 @@ public:
 	virtual void KeyUp( int key ) = 0;
 	virtual void KeyDown( int key ) = 0;
 	Surface* screen = 0;
+	static inline bool isFocused = true;
 	// settings
 	// autoRendering:
 	// If enabled (default), the framework automatically produces a ray traced image of the scene between calls 

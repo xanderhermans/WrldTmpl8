@@ -114,9 +114,15 @@ float3 SampleSky( const float3 T, __global float4* sky, uint w, uint h )
 	return s.xyz;
 }
 
+// 4 bits so the value ranges from 0 to 15
+float EmitStrength(const uint v)
+{
+	return (float)((v & 0xf000) >> 12);
+}
+
 bool IsEmitter(const uint v)
 {
-	return (v & 0x8000) == 0x8000;
+	return (v & 0xf000) > 0;
 }
 
 // convert a voxel color to floating point rgb

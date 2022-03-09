@@ -11,6 +11,7 @@ struct Tri
 {
 	int3 f;
 	ushort col;
+	ushort side;
 
 	Tri(int i1, int i2, int i3, ushort _col) { f = int3(i1, i2, i3); col = _col; }
 };
@@ -27,7 +28,7 @@ bool IsEmitter(const uint v)
 }
 
 // convert a voxel color to floating point rgb // from tools.cl
-float3 ToFloatRGB(const uint v)
+float3 Tmpl8::ToFloatRGB(const uint v)
 {
 #if PAYLOADSIZE == 1
 	return float3((v >> 5) * (1.0f / 7.0f), ((v >> 2) & 7) * (1.0f / 7.0f), (v & 3) * (1.0f / 3.0f));
@@ -35,6 +36,18 @@ float3 ToFloatRGB(const uint v)
 	return float3(((v >> 8) & 15) * (1.0f / 15.0f), ((v >> 4) & 15) * (1.0f / 15.0f), (v & 15) * (1.0f / 15.0f));
 #endif
 }
+
+uint Tmpl8::ToUint(float3 c)
+{
+	c = clamp(c, float3(0, 0, 0), float3(1, 1, 1));
+#if PAYLOADSIZE == 1
+	return (uint(c.x * 7.0f) & 7) << 5 | (uint(c.y * 7.0f) & 7) << 2 | (uint(c.z * 3.0) & 3);
+#else
+	return (uint(c.x * 15.0f) & 15) << 8 | (uint(c.y * 15.0f) & 15) << 4 | (uint(c.z * 15.0f) & 15);
+#endif
+}
+
+
 
 int createVertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
 {
@@ -109,6 +122,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f1 = Tri(vi8, vi4, vi1, cv);
 						Tri f2 = Tri(vi1, vi5, vi8, cv);
+						f1.side = 1;
+						f2.side = 1;
 						mesh.tris.push_back(f1);
 						mesh.tris.push_back(f2);
 					}
@@ -119,6 +134,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f3 = Tri(vi5, vi1, vi2, cv);
 						Tri f4 = Tri(vi2, vi6, vi5, cv);
+						f3.side = 2;
+						f4.side = 2;
 						mesh.tris.push_back(f3);
 						mesh.tris.push_back(f4);
 					}
@@ -129,6 +146,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f5 = Tri(vi6, vi2, vi3, cv);
 						Tri f6 = Tri(vi3, vi7, vi6, cv);
+						f5.side = 3;
+						f6.side = 3;
 						mesh.tris.push_back(f5);
 						mesh.tris.push_back(f6);
 					}
@@ -139,6 +158,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f7 = Tri(vi7, vi3, vi4, cv);
 						Tri f8 = Tri(vi4, vi8, vi7, cv);
+						f7.side = 4;
+						f8.side = 4;
 						mesh.tris.push_back(f7);
 						mesh.tris.push_back(f8);
 					}
@@ -149,6 +170,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f9 = Tri(vi1, vi4, vi3, cv);
 						Tri f10 = Tri(vi3, vi2, vi1, cv);
+						f9.side = 5;
+						f10.side = 5;
 						mesh.tris.push_back(f9);
 						mesh.tris.push_back(f10);
 					}
@@ -159,6 +182,8 @@ void worldToMesh(Tmpl8::World* world, Mesh& mesh)
 					{
 						Tri f11 = Tri(vi7, vi8, vi5, cv);
 						Tri f12 = Tri(vi5, vi6, vi7, cv);
+						f11.side = 6;
+						f12.side = 6;
 						mesh.tris.push_back(f11);
 						mesh.tris.push_back(f12);
 					}

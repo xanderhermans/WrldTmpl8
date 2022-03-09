@@ -45,6 +45,7 @@
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <TargetName>$(ProjectName)_debug</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>template;.;lib\glad\include;lib\glfw\include;lib\OpenCL\inc;lib\zlib</AdditionalIncludeDirectories>

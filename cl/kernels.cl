@@ -87,7 +87,7 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 		const float3 N2 = VoxelNormal( side2, R.xyz );
 		if (IsEmitter(voxel2))
 		{
-			incoming += INVPI * ToFloatRGB(voxel2);
+			incoming += INVPI * ToFloatRGB(voxel2) * EmitStrength(voxel2);
 		}
 		//if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
 		//{
@@ -154,6 +154,40 @@ __kernel void renderNoTAA( write_only image2d_t outimg, __constant struct Render
 #endif
 	// finalize pixel
 	write_imagef( outimg, (int2)(x, y), (float4)(LinearToSRGB( ToneMapFilmic_Hejl2015( pixel.xyz, 1 ) ), 1) );
+}
+
+__kernel void finalizeA(write_only image2d_t outimg, __global float4* pixels, __global float4* accumulator, __constant struct RenderParams* params)
+{
+	const int x = get_global_id(0);
+	const int y = get_global_id(1);
+	if (x == 0 || y == 0 || x >= SCRWIDTH - 1 || y >= SCRHEIGHT - 1) return;
+	
+	float4 frameColor = pixels[x + y * SCRWIDTH];
+	float4 color;
+	if (params->dirty || params->framecount == 0)
+	{
+		accumulator[x + y * SCRWIDTH] = frameColor;
+		color = frameColor;
+	}
+	else
+	{
+#if 0
+		// Cumulative moving average
+		// Instead of simply accumulating so we always have color values ready.
+		float4 cma = accumulator[x + y * SCRWIDTH];
+		float invframecountplus1 = 1 / (float)(params->framecount + 1);
+		float n1 = (params->framecount) * invframecountplus1;
+		float4 cman1 = frameColor * invframecountplus1 + n1 * cma;
+		accumulator[x + y * SCRWIDTH] = cman1;
+		color = cman1;
+#else
+		accumulator[x + y * SCRWIDTH] += frameColor;
+		color = accumulator[x + y * SCRWIDTH] / (float)(params->framecount + 1);
+#endif
+	}
+	write_imagef(outimg, (int2)(x, y), (float4)(color.xyz, 1));
+	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(color.xyz), 1));
+	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(ToneMapFilmic_Hejl2015(color.xyz, 1)), 1));
 }
 
 // finalize: implementation of the Temporal Anti Aliasing algorithm.

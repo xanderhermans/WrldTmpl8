@@ -40,6 +40,9 @@
 // TAA, as in https://www.shadertoy.com/view/3sfBWs
 #define TAA			0	// 0 to disable, 1 to enable
 
+// Accumulator
+#define ACCUMULATOR 1
+
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
 
@@ -75,7 +78,7 @@ struct RenderParams
 {
 	float2 oneOverRes;
 	float3 E, p0, p1, p2;
-	uint R0, frame;
+	uint R0, frame, framecount;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
 	float skyLightScale, dummy1, dummy2, dummy3;
@@ -83,6 +86,7 @@ struct RenderParams
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
+	bool accumulate, dirty;
 };
 
 // lighting for 6 normals for sky15.hdr

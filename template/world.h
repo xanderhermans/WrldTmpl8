@@ -182,7 +182,12 @@ public:
 	float3 GetCameraPos() { return make_float3( camMat[3], camMat[7], camMat[11] ); }
 	void SetCameraPos( const float3 P ) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
 	mat4& GetCameraMatrix() { return camMat; }
+	RenderParams GetRenderParams() { return params; }
+	cl_event& GetRenderDoneEventHandle() { return renderDone; }
+	Buffer* GetFrameBuffer() { return tmpFrame; }
 	// render flow
+	bool dirty = false;
+	bool accumulate = false;
 	void Commit();
 	void Render();
 	float GetRenderTime() { return renderTime; }
@@ -428,6 +433,7 @@ private:
 	RenderParams params;				// CPU-side copy of the renderer parameters
 	Kernel* renderer, * committer;		// render kernel and commit kernel
 	Kernel* finalizer, * unsharpen;		// TAA finalization kernels
+	Kernel* accumulatorFinalizer;
 	Kernel* batchTracer;				// ray batch tracing kernel for inline tracing
 	Kernel* batchToVoidTracer;			// ray batch tracing kernel for inline tracing from solid to void
 #if MORTONBRICKS == 1
