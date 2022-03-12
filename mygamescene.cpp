@@ -24,7 +24,7 @@ void DummyWorld(World& world)
 	uint EMIT_ORANGE = ORANGE | EMIT;
 
 	array color_strenth{0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 8.0f, 15.0f};
-	auto set_voxel_emitter = [&](int x, int y, int z, uint color, uint emit_color, float probability)
+	auto get_voxel_color_random = [&](uint color, uint emit_color, float probability)
 	{
 		float randomfloat = RandomFloat();
 		if (randomfloat <= probability)
@@ -34,18 +34,25 @@ void DummyWorld(World& world)
 			float strength = 4;// color_strenth[int(randomfloat)];
 			uint emit = uint(max(1.0f, strength)) << 12;
 			uint emit_col = emit_color | emit;
-			world.Set(x, y, z, emit_col);
+			return emit_col;
 		}
-		else
-		{
-			world.Set(x, y, z, color);
-		}
+		return color;
 	};
 
 	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
 	{
-		set_voxel_emitter(_x, y, z, WHITE, WHITE, 0.1);
-		set_voxel_emitter(_xm, y, z, WHITE, GREEN, 0.1);
+		uint col1 = get_voxel_color_random(WHITE, WHITE, 0.1);
+		if (col1 != WHITE)
+		{
+			world.Set(_x + 2, y, z, col1);
+		}
+		world.Set(_x, y, z, WHITE);
+		uint col2 = get_voxel_color_random(WHITE, GREEN, 0.1);
+		if (col2 != WHITE)
+		{
+			world.Set(_xm - 2, y, z, col2);
+		}
+		world.Set(_xm, y, z, WHITE);
 	}
 	for (int x = _x; x <= _xm; x++) for (int z = _z; z <= _zm; z++)
 	{
@@ -56,7 +63,12 @@ void DummyWorld(World& world)
 	{
 		//world.Set(x, y, _z, EMIT_YELLOW);
 		//world.Set(x, y, _zm, EMIT_ORANGE);
-		set_voxel_emitter(x, y, _zm, WHITE, ORANGE, 0.1);
+		uint col1 = get_voxel_color_random(WHITE, ORANGE, 0.1);
+		if (col1 != WHITE)
+		{
+			world.Set(x, y, _zm - 2, col1);
+		}
+		world.Set(x, y, _zm, WHITE);
 	}
 }
 
