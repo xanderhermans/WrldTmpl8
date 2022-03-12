@@ -54,7 +54,12 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 	// trace primary ray
 	float dist;
 	uint side = 0;
-	const float3 D = GenerateCameraRay( screenPos, params );
+	const int x = (int)screenPos.x, y = (int)screenPos.y;
+	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
+	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f;
+	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
+	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
+	//const float3 D = GenerateCameraRay(screenPos, params);
 	const uint voxel = TraceRay( (float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
 	const float skyLightScale = params->skyLightScale;
 
@@ -62,7 +67,7 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 
 	if (voxel == 0)
 	{
-		return 0;
+		return (float4)(0,0,0,1e20f);
 		//return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
 	}
 	if (IsEmitter(voxel))
@@ -72,13 +77,19 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 
 	const float3 BRDF1 = INVPI * ToFloatRGB( voxel );
 	float3 incoming = (float3)(0, 0, 0);
-	const int x = (int)screenPos.x, y = (int)screenPos.y;
-	uint seed = WangHash( x * 171 + y * 1773 + params->R0 );
 	const float4 I = (float4)(params->E + D * dist, 0);
+
+	//const float INV256 = 1.0f / 256.0f;
+	//const float INV512 = 1.0f / 512.0f;
 	for (int i = 0; i < GIRAYS; i++)
 	{
-		const float r0 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 0 );
-		const float r1 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 1 );
+		//const float r0offset = RandomFloat(&seed) * INV256 - INV512;
+		//const float r1offset = RandomFloat(&seed) * INV256 - INV512;
+		//const float r0 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 0 ) + r0offset;
+		//const float r1 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 1 ) + r1offset;
+		
+		const float r0 = RandomFloat(&seed);
+		const float r1 = RandomFloat(&seed);
 		const float3 N = VoxelNormal( side, D );
 		const float4 R = (float4)(DiffuseReflectionCosWeighted( r0, r1, N ), 1);
 		uint side2;
