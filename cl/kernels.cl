@@ -87,7 +87,8 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 		const float3 N2 = VoxelNormal( side2, R.xyz );
 		if (IsEmitter(voxel2))
 		{
-			incoming += INVPI * ToFloatRGB(voxel2) * EmitStrength(voxel2);
+			// No INVPI term here since we are directly sampling emitters and the INVPI term is in BRDF1
+			incoming += ToFloatRGB(voxel2) * EmitStrength(voxel2);
 		}
 		//if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
 		//{

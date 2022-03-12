@@ -14,7 +14,7 @@ void MyGame::Init()
 {
 	MyGameScene::CreateWorld(*GetWorld());
 	//autoRendering = false;
-	WorldToOBJ(GetWorld(), "scene_export/scene");
+	//WorldToOBJ(GetWorld(), "scene_export/scene1");
 }
 
 void MyGame::HandleControls(float deltaTime)

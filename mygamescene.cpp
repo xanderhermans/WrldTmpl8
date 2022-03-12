@@ -31,10 +31,9 @@ void DummyWorld(World& world)
 		{
 			float3 colr = ToFloatRGB(emit_color);
 			randomfloat = RandomFloat() * (color_strenth.size() - 1);
-			float strength = 15;//color_strenth[int(randomfloat)];
-			colr *= strength;
+			float strength = 4;// color_strenth[int(randomfloat)];
 			uint emit = uint(max(1.0f, strength)) << 12;
-			uint emit_col = ToUint(colr) | emit;
+			uint emit_col = emit_color | emit;
 			world.Set(x, y, z, emit_col);
 		}
 		else
@@ -63,39 +62,37 @@ void DummyWorld(World& world)
 
 void MyGameScene::CreateWorld(World& world)
 {
-	//world.Clear();
-	//DummyWorld(world);
-
-	//uint a = LoadSprite("assets/corvette.vx");
-	//StampSpriteTo(a, 96, 8, 24);
-
-
 	world.Clear();
+	DummyWorld(world);
 
-	uint sizex = 6;
-	uint sizey = 7;
-	uint sizez = 8;
-	for (uint y = 0; y < sizey; y++)
-	{
-		for (uint z = 0; z < sizez; z++)
-		{
-			for (uint x = 0; x < sizex; x++)
-			{
-				world.Set(x, y, z, WHITE | (1 << 15));
-			}
-		}
-	}
+	uint a = LoadSprite("assets/corvette.vx");
+	StampSpriteTo(a, 96, 8, 24);
 
-	for (int i = 0; i < sizex; i++)
-	{
-		world.Set(i, 0, 0, RED | (1 << 15));
-	}
-	for (int i = 0; i < sizey; i++)
-	{
-		world.Set(0, i, 0, GREEN | (1 << 15));
-	}
-	for (int i = 0; i < sizez; i++)
-	{
-		world.Set(0, 0, i, BLUE | (1 << 15));
-	}
+	//world.Clear();
+	//uint sizex = 6;
+	//uint sizey = 7;
+	//uint sizez = 8;
+	//for (uint y = 0; y < sizey; y++)
+	//{
+	//	for (uint z = 0; z < sizez; z++)
+	//	{
+	//		for (uint x = 0; x < sizex; x++)
+	//		{
+	//			world.Set(x, y, z, WHITE | (1 << 15));
+	//		}
+	//	}
+	//}
+
+	//for (int i = 0; i < sizex; i++)
+	//{
+	//	world.Set(i, 0, 0, RED | (1 << 15));
+	//}
+	//for (int i = 0; i < sizey; i++)
+	//{
+	//	world.Set(0, i, 0, GREEN | (1 << 15));
+	//}
+	//for (int i = 0; i < sizez; i++)
+	//{
+	//	world.Set(0, 0, i, BLUE | (1 << 15));
+	//}
 }

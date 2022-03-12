@@ -5,33 +5,18 @@
 #define CULL_DUPE_VERTICES
 #define CULL_OCCLUDED_FACES
 #define LEFTHANDED_COORDINATE_SYSTEM
+#define USE_GREEDY_MESHING
 
 using namespace Tmpl8;
-
-struct Tri
-{
-	int3 f;
-	ushort col;
-
-	Tri(int i1, int i2, int i3, ushort _col) { f = int3(i1, i2, i3); col = _col; }
-};
-
-struct UnboundQuad
-{
-	uint col = 0;
-	int3 v1 = make_int3(0), v2 = make_int3(0), v3 = make_int3(0), v4 = make_int3(0);
-	UnboundQuad(int3 v1, int3 v2, int3 v3, int3 v4) : v1(v1), v2(v2), v3(v3), v4(v4) {}
-};
-
-struct Mesh
-{
-	vector<int3> vertices;
-	vector<Tri> tris;
-};
 
 bool IsEmitter(const uint v)
 {
 	return (v >> 12 & 15) > 0;
+}
+
+float Tmpl8::EmitStrength(const uint v)
+{
+	return (float)((v & 0xf000) >> 12);
 }
 
 // convert a voxel color to floating point rgb // from tools.cl
@@ -53,8 +38,6 @@ uint Tmpl8::ToUint(float3 c)
 	return (uint(c.x * 15.0f) & 15) << 8 | (uint(c.y * 15.0f) & 15) << 4 | (uint(c.z * 15.0f) & 15);
 #endif
 }
-
-
 
 int createVertex(unordered_map<int, int>& map, vector<int3>& vertices, int3 v)
 {
@@ -235,7 +218,9 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 		fprintf(matfile, "Kd %f %f %f\n", kd.x, kd.y, kd.z);
 		if (IsEmitter(col))
 		{
-			fprintf(matfile, "Ke %f %f %f\n", kd.x, kd.y, kd.z);
+			float strength = EmitStrength(col);
+			float3 ke = kd * strength;
+			fprintf(matfile, "Ke %f %f %f\n", ke.x, ke.y, ke.z);
 		}
 
 		fprintf(matfile, "\n");
@@ -294,14 +279,15 @@ void printvis(bool* vis)
 
 inline void ToAxis(const int lc1, const int lc2, const int layer, int& x, int& y, int& z, int axis)
 {
-	uint data[3] = { lc1, lc2, layer };
+	int data[3] = { lc1, lc2, layer };
 	x = data[axis % 3];
 	y = data[(axis + 1) % 3];
 	z = data[(axis + 2) % 3];
 }
 
-inline uint GetFromGrid(uint* grid, const uint lc1, const uint lc2, const uint layer, int axis)
+inline uint GetFromGrid(uint* grid, const uint lc1, const uint lc2, const int layer, int axis)
 {
+	if (layer < 0) return 0;
 	static uint __sizex = GRIDWIDTH * BRICKDIM;
 	static uint __sizey = GRIDHEIGHT * BRICKDIM;
 	static uint __sizez = GRIDDEPTH * BRICKDIM;
@@ -309,11 +295,15 @@ inline uint GetFromGrid(uint* grid, const uint lc1, const uint lc2, const uint l
 	int x, y, z;
 	ToAxis(lc1, lc2, layer, x, y, z, axis);
 
-	// bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH from world.h
-	return grid[x + z * __sizex + y * __sizex * __sizez];
+	if (x < __sizex && y < __sizey && z < __sizez)
+	{
+		// bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH from world.h
+		return grid[x + z * __sizex + y * __sizex * __sizez];
+	}
+	return 0;
 }
 
-void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
+void Tmpl8::QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i, int layerside)
 {
 	if (axis_i > 2)
 	{
@@ -326,11 +316,14 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 	static uint localdims1[3] = { __sizex, __sizez, __sizey };
 	static uint localdims2[3] = { __sizey, __sizex, __sizez };
 	static uint layerdims[3] = { __sizez, __sizey, __sizex };
+	static int sideoffsets[2] = { -1, 1 };
 
 	bool* visited = nullptr;
 	uint layerdim = layerdims[axis_i];
 	uint localdim1 = localdims1[axis_i];
 	uint localdim2 = localdims2[axis_i];
+	int sideoffset = sideoffsets[layerside];
+
 	for (uint layer = 0; layer < layerdim; layer++)
 	{
 		if (visited != nullptr) { for (uint z = 0; z < localdim2; z++) { for (uint x = 0; x < localdim1; x++) { visited[x + z * localdim1] = false; } } }
@@ -348,7 +341,9 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 				if (runStarted)
 				{
 					uint voxel = GetFromGrid(grid, localcount1, localcount2, layer, axis_i);
-					if (visited[localcount1 + localcount2 * localdim1] || voxel != lastvoxel)
+					uint voxel1 = GetFromGrid(grid, localcount1, localcount2, layer + sideoffset, axis_i);
+					bool neighbourOccluded = voxel1 != 0;
+					if (visited[localcount1 + localcount2 * localdim1] || voxel != lastvoxel || neighbourOccluded)
 					{
 						// not the same voxel, we have work to do
 						uint _localcount2;
@@ -357,7 +352,9 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 							for (uint _localcount1 = runxstart; _localcount1 < localcount1; _localcount1++)
 							{
 								uint voxel = GetFromGrid(grid, _localcount1, _localcount2, layer, axis_i);
-								if (voxel != lastvoxel || visited[_localcount1 + _localcount2 * localdim1])
+								uint voxel1 = GetFromGrid(grid, _localcount1, _localcount2, layer + sideoffset, axis_i);
+								bool neighbourOccluded = voxel1 != 0;
+								if (voxel != lastvoxel || visited[_localcount1 + _localcount2 * localdim1] || neighbourOccluded)
 								{
 									_localcount2--;
 									goto makequad;
@@ -373,15 +370,15 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 							int runystart = localcount2;
 							int runxend = localcount1;
 							int runyend = _localcount2 + 1;
+							int runheight = layer + layerside;
 							int x0, y0, z0, x1, y1, z1;
-							ToAxis(runxstart, runystart, layer, x0, y0, z0, axis_i);
-							ToAxis(runxend, runyend, layer, x1, y1, z1, axis_i);
+							ToAxis(runxstart, runystart, runheight, x0, y0, z0, axis_i);
+							ToAxis(runxend, runyend, runheight, x1, y1, z1, axis_i);
 
 #ifdef LEFTHANDED_COORDINATE_SYSTEM
 							x0 *= -1;
 							x1 *= -1;
 #endif
-
 							int3 v1 = make_int3(x0, y0, z1);
 							int3 v2 = make_int3(x1, y0, z0);
 							int3 v3 = make_int3(x1, y1, z1);
@@ -408,7 +405,7 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 								if (_test == test2)
 								{
 									pp(v1, v3);
-							}
+								}
 								if (_test == test3)
 								{
 									pp(v1, v4);
@@ -425,11 +422,11 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 								{
 									pp(v3, v4);
 								}
-						}
+							}
 
 							if (runxstart == runxend || runystart == runyend || test)
 							{
-								printf("What x:%d y:%d z:%d x:%d y:%d z:%d lc1:%d lc2:%d layer:%d\n", x0, y0, z0, x1, y1, z1, localcount1, _localcount2 + 1, layer);
+								printf("Duplicate vertex position x:%d y:%d z:%d x:%d y:%d z:%d lc1:%d lc2:%d layer:%d\n", x0, y0, z0, x1, y1, z1, localcount1, _localcount2 + 1, layer);
 							}
 #endif
 
@@ -441,27 +438,31 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 #endif
 
 							UnboundQuad quad = UnboundQuad(v1, v2, v3, v4);
-							quad.col = (lastvoxel & 0xffff) | ((axis_i << 16) & 0xf0000);
+							quad.col = (lastvoxel & 0xffff) | ((axis_i & 0xf) << 16) | ((layerside & 0xf) << 20);
 							quads.push_back(quad);
-					}
+						}
 
 						runxstart = localdim1;
 						lastvoxel = 0;
 						continue;
+					}
 				}
-			}
 				else
 				{
+#if 0
 					if (localcount2 * localdim1 + localcount1 > localdim1 * localdim2)
 					{
 						printf("TRYING TO READ OUTSIDE ARRAY %d %d %d i:%d size:%d", localcount1, localcount2, localdim2, localcount2 * localdim1 + localcount1, localdim1 * localdim2);
 						return;
 					}
+#endif
 
 					if (!visited[localcount1 + (int)(localcount2 * localdim1)]) // havent visited this
 					{
 						uint voxel = GetFromGrid(grid, localcount1, localcount2, layer, axis_i);
-						if (voxel != 0) // not empty space
+						uint voxel1 = GetFromGrid(grid, localcount1, localcount2, layer + sideoffset, axis_i);
+						bool neighbourOccluded = voxel1 != 0;
+						if (voxel != 0 && !neighbourOccluded) // not empty space
 						{
 							runxstart = localcount1;
 							lastvoxel = voxel;
@@ -471,13 +472,13 @@ void QuadsForAxis(uint* grid, vector<UnboundQuad>& quads, int axis_i)
 
 				visited[localcount1 + localcount2 * localdim1] = true;
 				localcount1++;
+			}
 		}
-	}
 
 #ifdef PRINTINFO	
 		if (layer < 8) printf("\r\n");
 #endif
-}
+	}
 
 	if (visited != nullptr) delete[] visited;
 }
@@ -494,6 +495,7 @@ void QuadsToMesh(vector<UnboundQuad>& quads, Mesh& mesh)
 	{
 		ushort col = quad.col & 0xffff;
 		ushort side = (quad.col & 0xf0000) >> 16;
+		ushort layerside = (quad.col & 0xf00000) >> 20;
 		int3 _v1 = quad.v1;
 		int3 _v2 = quad.v2;
 		int3 _v3 = quad.v3;
@@ -506,12 +508,15 @@ void QuadsToMesh(vector<UnboundQuad>& quads, Mesh& mesh)
 
 		int vs[4] = { v1,v2,v3,v4 };
 
-		int orderingtri1[12] = { 
+		int orderingtri1[24] = {
 			0,1,2,3,
 			0,2,1,3,
-			0,1,3,2
+			0,1,3,2,
+
+			3,2,1,0,
+			3,1,2,0,
+			2,3,1,0
 		};
-		//int orderingtri2[3] = { 1,2,3 };
 
 #if 0
 		if (v1 == v2 || v1 == v4 || v2 == v4)
@@ -524,9 +529,9 @@ void QuadsToMesh(vector<UnboundQuad>& quads, Mesh& mesh)
 		}
 #endif
 
-		int offset = side * 4;
-		if (offset + 3 > 11) printf("Wrong offset, unimplemented cube sides?\n");
-		
+		int offset = (side * 4) + layerside * 12;
+		if (offset + 3 > 23) printf("Wrong offset, unimplemented cube sides?\n");
+
 		Tri tri1 = Tri(vs[orderingtri1[0 + offset]], vs[orderingtri1[1 + offset]], vs[orderingtri1[2 + offset]], col);
 		Tri tri2 = Tri(vs[orderingtri1[0 + offset]], vs[orderingtri1[2 + offset]], vs[orderingtri1[3 + offset]], col);
 
@@ -556,14 +561,34 @@ void WorldToQuadMesh(World& world, Mesh& mesh)
 	}
 	printf("Grid filled\r\n");
 
-	vector<UnboundQuad> quads;
+	GreeyMeshJob greedymeshjobs[6];
+	JobManager* jm = JobManager::GetJobManager();
 
-	//for (int i = 0; i < 3; i++)
-	//{
-	//	QuadsForAxis(grid, quads, i);
-	//	printf("Axis done %d\r\n", i);
-	//}
-	QuadsForAxis(grid, quads, 1);
+	for (int i = 0, j = 0; i < 3; i++)
+	{
+		for (int layerside = 0; layerside < 2; layerside++) 
+		{
+			GreeyMeshJob& job = greedymeshjobs[j];
+			job.grid = grid;
+			job.i = i;
+			job.layerside = layerside;
+
+			jm->AddJob2(&job);
+			j++;
+		}
+	}
+
+	jm->RunJobs();
+	vector<UnboundQuad> quads;
+	for (int i = 0; i < 6; i++)
+	{
+		GreeyMeshJob& job = greedymeshjobs[i];
+		for (UnboundQuad& quad : job.quads)
+		{
+			quads.push_back(quad);
+		}
+	}
+
 	printf("Creating mesh\r\n");
 	QuadsToMesh(quads, mesh);
 
@@ -574,96 +599,16 @@ void WorldToQuadMesh(World& world, Mesh& mesh)
 
 void Tmpl8::WorldToOBJ(Tmpl8::World* world, std::string filename)
 {
+	printf("Exporting world to obj!");
 	Mesh mesh;
-	//worldToMesh(world, mesh);
+
+#ifdef USE_GREEDY_MESHING
 	WorldToQuadMesh(*world, mesh);
+#else
+	worldToMesh(world, mesh);
+#endif // USE_GREEDY_MESHING
 
 	printf("%d vertices with %d faces\r\n", int(mesh.vertices.size()), int(mesh.tris.size()));
 
 	SaveMeshToObj(mesh, filename);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if 0
-if (visited[x + z * sizex] && runxstart == sizex) // already handeled and we are not in a run
-{
-	x++;
-	continue;
-}
-
-uint voxel = world->Get(x, y, z);
-if (voxel == 0 && lastvoxel == 0) // we are not tracking a run and we encountered empty space
-{
-	visited[x + z * sizex] = true;
-	x++;
-	continue;
-}
-
-if (runxstart == sizex) // we start tracking a new run
-{
-	runxstart = x; lastvoxel = voxel;
-	visited[x + z * sizex] = true;
-	x++;
-	continue;
-}
-
-if (voxel == lastvoxel && !visited[x + z * sizex]) // we are tracking a run and we can continue the run
-{
-	visited[x + z * sizex] = true;
-	x++;
-	continue;
-}
-
-// not the same voxel, we have work to do
-uint z1;
-for (z1 = z + 1; z1 < sizez; z1++)
-{
-	for (uint x1 = runxstart; x1 < x; x1++)
-	{
-		voxel = world->Get(x1, y, z1);
-		if (voxel != lastvoxel || visited[x1 + z1 * sizex])
-		{
-			z1--;
-			goto makequad;
-		}
-	}
-	for (uint x1 = runxstart; x1 < x; x1++)
-	{
-		visited[x1 + z1 * sizex] = true;
-	}
-}
-makequad:
-{
-	uint x1 = x - 1;
-	uint y1 = y + 1;
-	int3 v1 = make_int3(x1, y1, z);
-	int3 v2 = make_int3(x1, y1, z1);
-	int3 v3 = make_int3(runxstart, y1, z1);
-	int3 v4 = make_int3(runxstart, y1, z);
-	printf("face");
-	printf("%d %d\r\n", x, z);
-	printf("%d %d %d %d\r\n", runxstart, x1, z, z1);
-	printvis(visited);
-	quads.push_back(UnboundQuad(v1, v2, v3, v4));
-}
-
-lastvoxel = 0;
-runxstart = sizex;
-#endif
