@@ -63,9 +63,39 @@ void DummyWorld(World& world)
 
 void MyGameScene::CreateWorld(World& world)
 {
-	world.Clear();
-	DummyWorld(world);
+	//world.Clear();
+	//DummyWorld(world);
 
-	uint a = LoadSprite("assets/corvette.vx");
-	StampSpriteTo(a, 96, 8, 24);
+	//uint a = LoadSprite("assets/corvette.vx");
+	//StampSpriteTo(a, 96, 8, 24);
+
+
+	world.Clear();
+
+	uint sizex = 6;
+	uint sizey = 7;
+	uint sizez = 8;
+	for (uint y = 0; y < sizey; y++)
+	{
+		for (uint z = 0; z < sizez; z++)
+		{
+			for (uint x = 0; x < sizex; x++)
+			{
+				world.Set(x, y, z, WHITE | (1 << 15));
+			}
+		}
+	}
+
+	for (int i = 0; i < sizex; i++)
+	{
+		world.Set(i, 0, 0, RED | (1 << 15));
+	}
+	for (int i = 0; i < sizey; i++)
+	{
+		world.Set(0, i, 0, GREEN | (1 << 15));
+	}
+	for (int i = 0; i < sizez; i++)
+	{
+		world.Set(0, 0, i, BLUE | (1 << 15));
+	}
 }

@@ -1194,6 +1194,7 @@ void Buffer::CopyToDevice2( bool blocking, cl_event* eventToSet, const size_t s 
 void Buffer::CopyFromDevice( bool blocking )
 {
 	cl_int error;
+	if (!hostBuffer) hostBuffer = new uint[size], ownData = true;
 	CHECKCL( error = clEnqueueReadBuffer( Kernel::GetQueue(), deviceBuffer, blocking, 0, size * 4, hostBuffer, 0, 0, 0 ) );
 }
 

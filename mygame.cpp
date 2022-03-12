@@ -59,7 +59,7 @@ void printStats()
 void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
-	//clWaitForEvents(1,- &GetWorld()->GetRenderDoneEventHandle());
+	//clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
 	//GetWorld()->GetFrameBuffer()->CopyFromDevice();
 	//auto buf = GetWorld()->GetFrameBuffer()->GetHostPtr();
 
