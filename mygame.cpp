@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "mygame.h"
 #include "mygamescene.h"
+#include <filesystem>
 
 Game* CreateGame() { return new MyGame(); }
 
@@ -12,9 +13,20 @@ float3 D = _D, O = _O;
 // -----------------------------------------------------------
 void MyGame::Init()
 {
-	MyGameScene::CreateWorld(*GetWorld());
-	//autoRendering = false;
-	//WorldToOBJ(GetWorld(), "scene_export/scene1");
+	string import_path = "scene_export/grid.vx";
+	string export_path = "scene_export/scene";
+
+	int loadedworld = MyGameScene::LoadWorld(*GetWorld(), import_path);
+	if (loadedworld < 0)
+	{
+		MyGameScene::CreateWorld(*GetWorld());
+		MyGameScene::SaveWorld(import_path);
+	}
+
+	if (!filesystem::exists(export_path + ".obj"))
+	{
+		WorldToOBJ(GetWorld(), export_path);
+	}
 }
 
 void MyGame::HandleControls(float deltaTime)

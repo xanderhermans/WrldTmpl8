@@ -1,19 +1,21 @@
 #include "precomp.h"
 #include "mygamescene.h"
+#include <filesystem>
 
 using namespace MyGameScene;
 
+const int world_width = 256;
+const int world_height = 128;
+const int world_depth = 288;
+
 void DummyWorld(World& world)
 {
-	int width = 256;
-	int height = 128;
-	int depth = 288;
 	int _y = 0;
-	int _ym = height;
+	int _ym = world_height;
 	int _x = 0;
-	int _xm = width;
+	int _xm = world_width;
 	int _z = 0;
-	int _zm = depth;
+	int _zm = world_depth;
 
 	uint EMIT = 1 << 15;
 	uint EMIT_WHITE = WHITE | EMIT;
@@ -39,20 +41,22 @@ void DummyWorld(World& world)
 		return color;
 	};
 
+	const int offset = 0;
+
 	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
 	{
+		world.Set(_x, y, z, WHITE);
 		uint col1 = get_voxel_color_random(WHITE, WHITE, 0.1);
 		if (col1 != WHITE)
 		{
-			world.Set(_x + 2, y, z, col1);
+			world.Set(_x + offset, y, z, col1);
 		}
-		world.Set(_x, y, z, WHITE);
+		world.Set(_xm, y, z, WHITE);
 		uint col2 = get_voxel_color_random(WHITE, GREEN, 0.1);
 		if (col2 != WHITE)
 		{
-			world.Set(_xm - 2, y, z, col2);
+			world.Set(_xm - offset, y, z, col2);
 		}
-		world.Set(_xm, y, z, WHITE);
 	}
 	for (int x = _x; x <= _xm; x++) for (int z = _z; z <= _zm; z++)
 	{
@@ -63,13 +67,39 @@ void DummyWorld(World& world)
 	{
 		//world.Set(x, y, _z, EMIT_YELLOW);
 		//world.Set(x, y, _zm, EMIT_ORANGE);
+		world.Set(x, y, _zm, WHITE);
 		uint col1 = get_voxel_color_random(WHITE, ORANGE, 0.1);
 		if (col1 != WHITE)
 		{
-			world.Set(x, y, _zm - 2, col1);
+			world.Set(x, y, _zm - offset, col1);
 		}
-		world.Set(x, y, _zm, WHITE);
 	}
+}
+
+void MyGameScene::SaveWorld(std::string filename)
+{
+	filesystem::path path = filename;
+	if (path.has_parent_path())
+	{
+		filesystem::create_directories(path.parent_path());
+	}
+
+	uint idx = CreateSprite(make_int3(0), make_int3(world_width + 4, world_height + 4, world_depth + 4), 1);
+	SaveSprite(idx, path.string().c_str());
+}
+
+int MyGameScene::LoadWorld(World& world, std::string filename)
+{
+	filesystem::path path = filename;
+	if (!filesystem::exists(path))
+	{
+		return -1;
+	}
+	uint idx = LoadSprite(filename.c_str());
+
+	world.Clear();
+	StampSpriteTo(idx, make_int3(0));
+	return idx;
 }
 
 void MyGameScene::CreateWorld(World& world)
@@ -79,32 +109,4 @@ void MyGameScene::CreateWorld(World& world)
 
 	uint a = LoadSprite("assets/corvette.vx");
 	StampSpriteTo(a, 96, 8, 24);
-
-	//world.Clear();
-	//uint sizex = 6;
-	//uint sizey = 7;
-	//uint sizez = 8;
-	//for (uint y = 0; y < sizey; y++)
-	//{
-	//	for (uint z = 0; z < sizez; z++)
-	//	{
-	//		for (uint x = 0; x < sizex; x++)
-	//		{
-	//			world.Set(x, y, z, WHITE | (1 << 15));
-	//		}
-	//	}
-	//}
-
-	//for (int i = 0; i < sizex; i++)
-	//{
-	//	world.Set(i, 0, 0, RED | (1 << 15));
-	//}
-	//for (int i = 0; i < sizey; i++)
-	//{
-	//	world.Set(0, i, 0, GREEN | (1 << 15));
-	//}
-	//for (int i = 0; i < sizez; i++)
-	//{
-	//	world.Set(0, 0, i, BLUE | (1 << 15));
-	//}
 }
