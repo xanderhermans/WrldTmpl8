@@ -237,6 +237,7 @@ void SaveMeshToObj(Mesh& mesh, string filename)
 	}
 
 	fprintf(objfile, "# %d vertices %d faces\n", int(mesh.vertices.size()), int(mesh.tris.size()));
+	fprintf(objfile, "mtllib %s\n", matfilename.filename().string().c_str());
 	for (int3& v : mesh.vertices)
 	{
 		fprintf(objfile, "v %d %d %d\n", v.x, v.y, v.z); //more compact: remove trailing zeros
@@ -599,7 +600,7 @@ void WorldToQuadMesh(World& world, Mesh& mesh)
 
 void Tmpl8::WorldToOBJ(Tmpl8::World* world, std::string filename)
 {
-	printf("Exporting world to obj!");
+	printf("Exporting world to obj!\r\n");
 	Mesh mesh;
 
 #ifdef USE_GREEDY_MESHING
