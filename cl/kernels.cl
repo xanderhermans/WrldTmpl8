@@ -56,74 +56,55 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 	uint side = 0;
 	const int x = (int)screenPos.x, y = (int)screenPos.y;
 	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
-	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f;
+	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f; //AA
 	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
 	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
-	//const float3 D = GenerateCameraRay(screenPos, params);
 	const uint voxel = TraceRay( (float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
 	const float skyLightScale = params->skyLightScale;
 
-	// visualize result: simple hardcoded directional lighting using arbitrary unit vector
-
-	if (voxel == 0)
+	if (voxel == 0) // exit the scene
 	{
 		return (float4)(0,0,0,1e20f);
 		//return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
 	}
-	if (IsEmitter(voxel))
+	if (IsEmitter(voxel)) // first bounce hit an emitter
 	{
 		return (float4)(ToFloatRGB(voxel), 1e20f);
 	}
 
 	const float3 BRDF1 = INVPI * ToFloatRGB( voxel );
-	float3 incoming = (float3)(0, 0, 0);
 	const float4 I = (float4)(params->E + D * dist, 0);
 
-	//const float INV256 = 1.0f / 256.0f;
-	//const float INV512 = 1.0f / 512.0f;
-	for (int i = 0; i < GIRAYS; i++)
+	int stratum_x = params->frame & 15;
+	int stratum_y = params->frame >> 4;
+
+	const float INV16 = 1.0f / 16.0f;
+
+#if 1 // stratified
+	float r0 = stratum_x * INV16 + RandomFloat(&seed) * INV16;
+	float r1 = stratum_y * INV16 + RandomFloat(&seed) * INV16;
+#elif
+	float r0 = RandomFloat(&seed);
+	float r1 = RandomFloat(&seed);
+#endif
+
+	const float3 N = VoxelNormal(side, D);
+	const float4 R = (float4)(DiffuseReflectionCosWeighted(r0, r1, N), 1);
+	const float NdotL = dot(N, R.xyz);
+	const float PDF = NdotL * INVPI;
+
+	uint side2;
+	float dist2;
+	const uint voxel2 = TraceRay(I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
+	if (!IsEmitter(voxel2)) // random bounce did not hit an emitter
 	{
-		//const float r0offset = RandomFloat(&seed) * INV256 - INV512;
-		//const float r1offset = RandomFloat(&seed) * INV256 - INV512;
-		//const float r0 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 0 ) + r0offset;
-		//const float r1 = blueNoiseSampler( blueNoise, x, y, i + GIRAYS * params->frame, 1 ) + r1offset;
-		
-		const float r0 = RandomFloat(&seed);
-		const float r1 = RandomFloat(&seed);
-		const float3 N = VoxelNormal( side, D );
-		const float4 R = (float4)(DiffuseReflectionCosWeighted( r0, r1, N ), 1);
-		uint side2;
-		float dist2;
-		const uint voxel2 = TraceRay( I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH );
-		const float3 N2 = VoxelNormal( side2, R.xyz );
-		if (IsEmitter(voxel2))
-		{
-			// No INVPI term here since we are directly sampling emitters and the INVPI term is in BRDF1
-			incoming += ToFloatRGB(voxel2) * EmitStrength(voxel2);
-		}
-		//if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
-		//{
-		//	if (voxel2 == 0) incoming += skyLightScale * SampleSky( (float3)(R.x, R.z, R.y), sky, params->skyWidth, params->skyHeight ); else /* secondary hit */
-		//	{
-		//		const float4 R2 = (float4)(DiffuseReflectionCosWeighted( r0, r1, N2 ), 1);
-		//		incoming += INVPI * ToFloatRGB( voxel2 ) * skyLightScale * SampleSky( (float3)(R2.x, R2.z, R2.y), sky, params->skyWidth, params->skyHeight );
-		//	}
-		//}
-		//else
-		//{
-		//	float3 toAdd = (float3)skyLightScale, M = N;
-		//	if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB( voxel2 ), M = N2;
-		//	float4 sky;
-		//	if (M.x < -0.9f) sky = params->skyLight[0];
-		//	if (M.x > 0.9f) sky = params->skyLight[1];
-		//	if (M.y < -0.9f) sky = params->skyLight[2];
-		//	if (M.y > 0.9f) sky = params->skyLight[3];
-		//	if (M.z < -0.9f) sky = params->skyLight[4];
-		//	if (M.z > 0.9f) sky = params->skyLight[5];
-		//	incoming += toAdd * sky.xyz;
-		//}
+		return (float4)(0, 0, 0, 1e20f);
 	}
-	return (float4)(BRDF1 * incoming * (1.0f / GIRAYS), dist);
+	
+	const float3 sampleL = ToFloatRGB(voxel2) * EmitStrength(voxel2);
+
+	const float3 incoming = sampleL * BRDF1 / PDF;
+	return (float4)(incoming, dist);
 }
 
 // renderTAA: main rendering entry point. Forwards the request to either a basic

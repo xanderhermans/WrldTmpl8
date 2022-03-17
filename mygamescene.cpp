@@ -33,7 +33,7 @@ void DummyWorld(World& world)
 		{
 			float3 colr = ToFloatRGB(emit_color);
 			randomfloat = RandomFloat() * (color_strenth.size() - 1);
-			float strength = 4;// color_strenth[int(randomfloat)];
+			float strength = 1;// color_strenth[int(randomfloat)];
 			uint emit = uint(max(1.0f, strength)) << 12;
 			uint emit_col = emit_color | emit;
 			return emit_col;
