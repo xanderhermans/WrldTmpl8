@@ -60,3 +60,5 @@ buildlog.txt
 *.user
 
 *.mtl
+
+*.dat

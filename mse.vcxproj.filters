@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="template\template.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="template\world.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="world_to_obj.cpp">
+      <Filter>template</Filter>
+    </ClCompile>
+    <ClCompile Include="mse.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="template\bluenoise.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\common.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\precomp.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\world.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="world_to_obj.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="template\worldapi.h">
+      <Filter>template</Filter>
+    </ClInclude>
+    <ClInclude Include="cl\tools.cl">
+      <Filter>template\cl</Filter>
+    </ClInclude>
+    <ClInclude Include="cl\trace.cl">
+      <Filter>template\cl</Filter>
+    </ClInclude>
+    <ClInclude Include="mse.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="cl\kernels.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="template\LICENSE">
+      <Filter>template</Filter>
+    </None>
+    <None Include="README.md">
+      <Filter>template</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="template">
+      <UniqueIdentifier>{c15e5289-e46f-4aa1-b971-cd2a85adeecc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="template\cl">
+      <UniqueIdentifier>{2ae33ca1-50d2-4c80-a91f-280b2d5c382b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

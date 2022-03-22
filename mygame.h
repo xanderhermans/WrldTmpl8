@@ -5,6 +5,7 @@ namespace Tmpl8
 
 class MyGame : public Game
 {
+	void PrintStats();
 public:
 	// game flow methods
 	void Init();
@@ -18,6 +19,8 @@ public:
 	void KeyDown( int key ) { /* implement if you want to handle keys */ }
 	// data members
 	int2 mousePos;
+
+	void DumpScreenBuffer();
 
 	void HandleControls(float deltaTime);
 };

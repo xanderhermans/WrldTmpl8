@@ -302,7 +302,7 @@ void InitRenderTarget( int w, int h )
 {
 	// allocate render target and surface
 	scrwidth = w, scrheight = h;
-	renderTarget = new GLTexture( scrwidth, scrheight, GLTexture::INTTARGET );
+	renderTarget = new GLTexture( scrwidth, scrheight, GLTexture::FLOAT );
 }
 void ReshapeWindowCallback( GLFWwindow* window, int w, int h )
 {
@@ -396,12 +396,19 @@ void main()
 		deltaTime = min( 500.0f, 1000.0f * timer.elapsed() );
 		timer.reset();
 		// process world changes made in the previous frame and start rendering on GPU
-		world->Render(); // GPU ray tracing code runs asynchronously, i.e. in the background
+		if (Game::autoRendering)
+		{
+			world->Render(); // GPU ray tracing code runs asynchronously, i.e. in the background
+		}
+		else 
+		{
+			game->Render(screen);
+		}
 		// while the GPU traces rays, update the world state using game->Tick
 		game->Tick( deltaTime );
 		if (GetAsyncKeyState( VK_LSHIFT )) for (int i = 0; i < 3; i++) game->Tick( deltaTime );
 		// while the GPU still traces rays, send world changes to a staging buffer on the GPU
-		world->Commit(); // also waits for GPU to complete tracing rays
+		if (Game::autoRendering) world->Commit(); // also waits for GPU to complete tracing rays
 		// send the rendering result to the screen using OpenGL
 		if (frameNr++ > 1)
 		{

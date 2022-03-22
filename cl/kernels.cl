@@ -69,7 +69,8 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 	}
 	if (IsEmitter(voxel)) // first bounce hit an emitter
 	{
-		return (float4)(ToFloatRGB(voxel), 1e20f);
+		//Ke = Kd * emit strength
+		return (float4)(ToFloatRGB(voxel) * EmitStrength(voxel), 1e20f);
 	}
 
 	const float3 BRDF1 = INVPI * ToFloatRGB( voxel );
@@ -83,7 +84,7 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 #if 1 // stratified
 	float r0 = stratum_x * INV16 + RandomFloat(&seed) * INV16;
 	float r1 = stratum_y * INV16 + RandomFloat(&seed) * INV16;
-#elif
+#else
 	float r0 = RandomFloat(&seed);
 	float r1 = RandomFloat(&seed);
 #endif
@@ -101,7 +102,7 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 		return (float4)(0, 0, 0, 1e20f);
 	}
 	
-	const float3 sampleL = ToFloatRGB(voxel2) * EmitStrength(voxel2);
+	const float3 sampleL = ToFloatRGB(voxel2)* EmitStrength(voxel2);
 
 	const float3 incoming = sampleL * BRDF1 / PDF;
 	return (float4)(incoming, dist);
@@ -164,7 +165,7 @@ __kernel void finalizeA(write_only image2d_t outimg, __global float4* pixels, __
 	}
 	else
 	{
-#if 0
+#if 1
 		// Cumulative moving average
 		// Instead of simply accumulating so we always have color values ready.
 		float4 cma = accumulator[x + y * SCRWIDTH];

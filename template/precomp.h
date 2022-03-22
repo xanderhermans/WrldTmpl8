@@ -8,6 +8,7 @@
 // do not include headers in header files (ever).
 
 // C++ headers
+#include <filesystem>
 #include <chrono>
 #include <fstream>
 #include <vector>
@@ -824,6 +825,13 @@ public:
 	static mat4 Translate( const float x, const float y, const float z ) { mat4 r; r.cell[3] = x; r.cell[7] = y; r.cell[11] = z; return r; };
 	static mat4 Translate( const float3 P ) { mat4 r; r.cell[3] = P.x; r.cell[7] = P.y; r.cell[11] = P.z; return r; };
 	float Trace3() const { return cell[0] + cell[5] + cell[10]; }
+	float3 EulerAngles() 
+	{
+		float x = atan2f(cell[9], cell[10]);
+		float y = atan2f(-cell[8], sqrtf(cell[9] * cell[9] + cell[10] * cell[10]));
+		float z = atan2f(cell[4], -cell[0]);
+		return make_float3(x, y, z);
+	};
 	CHECK_RESULT mat4 Transposed() const
 	{
 		mat4 M;
@@ -1271,6 +1279,7 @@ public:
 	virtual void MouseMove( int x, int y ) = 0;
 	virtual void KeyUp( int key ) = 0;
 	virtual void KeyDown( int key ) = 0;
+	virtual void Render(Surface* surface) {};
 	Surface* screen = 0;
 	static inline bool isFocused = true;
 	// settings

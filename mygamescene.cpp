@@ -26,7 +26,7 @@ void DummyWorld(World& world)
 	uint EMIT_ORANGE = ORANGE | EMIT;
 
 	array color_strenth{0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 2.0f, 2.0f, 8.0f, 15.0f};
-	auto get_voxel_color_random = [&](uint color, uint emit_color, float probability)
+	auto get_voxel_color_random = [&](uint emit_color, float probability)
 	{
 		float randomfloat = RandomFloat();
 		if (randomfloat <= probability)
@@ -38,25 +38,14 @@ void DummyWorld(World& world)
 			uint emit_col = emit_color | emit;
 			return emit_col;
 		}
-		return color;
+		return (uint)0;
 	};
 
-	const int offset = 0;
-
+#if 1 // BOX
 	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
 	{
 		world.Set(_x, y, z, WHITE);
-		uint col1 = get_voxel_color_random(WHITE, WHITE, 0.1);
-		if (col1 != WHITE)
-		{
-			world.Set(_x + offset, y, z, col1);
-		}
 		world.Set(_xm, y, z, WHITE);
-		uint col2 = get_voxel_color_random(WHITE, GREEN, 0.1);
-		if (col2 != WHITE)
-		{
-			world.Set(_xm - offset, y, z, col2);
-		}
 	}
 	for (int x = _x; x <= _xm; x++) for (int z = _z; z <= _zm; z++)
 	{
@@ -68,12 +57,48 @@ void DummyWorld(World& world)
 		//world.Set(x, y, _z, EMIT_YELLOW);
 		//world.Set(x, y, _zm, EMIT_ORANGE);
 		world.Set(x, y, _zm, WHITE);
-		uint col1 = get_voxel_color_random(WHITE, ORANGE, 0.1);
-		if (col1 != WHITE)
+	}
+#endif
+
+#if 1 //RANDOM SMALL LIGHTS
+	const int offset = 10;
+
+	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
+	{
+		uint col1 = get_voxel_color_random(WHITE, 0.1);
+		if (col1 > 0)
+		{
+			world.Set(_x + offset, y, z, col1);
+		}
+		uint col2 = get_voxel_color_random(GREEN, 0.1);
+		if (col2 > 0)
+		{
+			world.Set(_xm - offset, y, z, col2);
+		}
+	}
+	for (int x = _x; x <= _xm; x++) for (int y = _y; y <= _ym; y++)
+	{
+		world.Set(x, y, _zm, WHITE);
+		uint col1 = get_voxel_color_random(ORANGE, 0.1);
+		if (col1 > 0)
 		{
 			world.Set(x, y, _zm - offset, col1);
 		}
 	}
+#endif
+
+
+#if 0 //TWO AREA LIGHTS
+	for (int y = 48; y <= 64; y++) for (int z = 48; z <= 64; z++)
+	{
+		world.Set(_x, y, z, WHITE | 0x4000);
+	}
+
+	for (int x = 48; x <= 64; x++) for (int y = 48; y <= 64; y++)
+	{
+		world.Set(x, y, _z, WHITE | 0x4000);
+	}
+#endif
 }
 
 void MyGameScene::SaveWorld(std::string filename)

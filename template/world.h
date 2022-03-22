@@ -185,6 +185,7 @@ public:
 	RenderParams GetRenderParams() { return params; }
 	cl_event& GetRenderDoneEventHandle() { return renderDone; }
 	Buffer* GetFrameBuffer() { return tmpFrame; }
+	Buffer* GetAccumulatorBuffer() { return history[0]; }
 	// render flow
 	bool dirty = false;
 	bool accumulate = false;
