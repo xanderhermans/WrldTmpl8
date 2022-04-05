@@ -1136,6 +1136,26 @@ public:
 // In your own .cpp files just add #include "precomp.h".
 // #include "my_include.h"
 
+inline void UpdateReservoir(Reservoir& _this, Reservoir res, float r)
+{
+	_this.sumOfWeights += res.sumOfWeights;
+	_this.streamLength += res.streamLength;
+	if (r < res.sumOfWeights / _this.sumOfWeights)
+	{
+		_this.position_selected = res.position_selected;
+	}
+}
+
+inline void UpdateReservoirL(Reservoir& _this, Light light, float r)
+{
+	_this.sumOfWeights += light.weight;
+	_this.streamLength += 1;
+	if (r < light.weight / _this.sumOfWeights)
+	{
+		_this.position_selected = light.position;
+	}
+}
+
 // structures for inline batch tracing
 struct Ray
 {
@@ -1280,6 +1300,7 @@ public:
 	virtual void KeyUp( int key ) = 0;
 	virtual void KeyDown( int key ) = 0;
 	virtual void Render(Surface* surface) {};
+	virtual void PreRender() {};
 	Surface* screen = 0;
 	static inline bool isFocused = true;
 	// settings

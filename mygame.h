@@ -7,6 +7,8 @@ class MyGame : public Game
 {
 	void PrintStats();
 public:
+	void SetupLightBuffers();
+	void SubSampleLightSamples();
 	// game flow methods
 	void Init();
 	void Tick( float deltaTime );
@@ -23,6 +25,7 @@ public:
 	void DumpScreenBuffer();
 
 	void HandleControls(float deltaTime);
+	void PreRender();
 };
 
 } // namespace Tmpl8

@@ -84,27 +84,41 @@ World::World( const uint targetID )
 	printf( "Allocated %iMB on CPU and GPU for %ik bricks.\n", (int)((BRICKCOUNT * BRICKSIZE) >> 20), (int)(BRICKCOUNT >> 10) );
 	printf( "Allocated %iKB on CPU for bitfield.\n", (int)(BRICKCOUNT >> 15) );
 	printf( "Allocated %iMB on CPU for brickInfo.\n", (int)((BRICKCOUNT * sizeof( BrickInfo )) >> 20) );
+	
+	params.frame = 0;
+	params.framecount = 0;
 	// initialize kernels
 	paramBuffer = new Buffer( sizeof( RenderParams ) / 4, Buffer::DEFAULT | Buffer::READONLY, &params );
-	history[0] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
-	history[1] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
+	historyTAA[0] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
+	historyTAA[1] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	tmpFrame = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
-#if TAA == 1 || ACCUMULATOR == 1
-	renderer = new Kernel( "cl/kernels.cl", "renderTAA" );
+	accumulator = new Buffer(4 * SCRWIDTH * SCRHEIGHT);
+
+	char* kernelfile = "cl/kernels.cl";
+#if ACCUMULATOR == 1
+	rendererPathTracer = new Kernel(kernelfile, "renderPathTracer");
+	currentRenderer = rendererPathTracer;
+#elif TAA == 1
+	rendererTAA = new Kernel(kernelfile, "renderTAA" );
+	currentRenderer = rendererTAA;
+#elif RIS == 1
+	rendererRIS = new Kernel(kernelfile, "renderRIS");
+	currentRenderer = rendererRIS;
 #else
-	renderer = new Kernel( "cl/kernels.cl", "renderNoTAA" );
+	rendererNoTAA = new Kernel(kernelfile, "renderNoTAA" );
+	currentRenderer = rendererNoTAA;
 #endif
-	accumulatorFinalizer = new Kernel(renderer->GetProgram(), "finalizeA");
-	finalizer = new Kernel( renderer->GetProgram(), "finalize" );
-	unsharpen = new Kernel( renderer->GetProgram(), "unsharpen" );
-	committer = new Kernel( renderer->GetProgram(), "commit" );
-	batchTracer = new Kernel( renderer->GetProgram(), "traceBatch" );
-	batchToVoidTracer = new Kernel( renderer->GetProgram(), "traceBatchToVoid" );
+	accumulatorFinalizer = new Kernel(kernelfile, "accumulatorFinalizer");
+	finalizer = new Kernel(kernelfile, "finalize" );
+	unsharpen = new Kernel(kernelfile, "unsharpen" );
+	committer = new Kernel(kernelfile, "commit" );
+	batchTracer = new Kernel(kernelfile, "traceBatch" );
+	batchToVoidTracer = new Kernel(kernelfile, "traceBatchToVoid" );
 #if MORTONBRICKS == 1
-	encodeBricks = new Kernel( renderer->GetProgram(), "encodeBricks" );
+	encodeBricks = new Kernel(kernelfile, "encodeBricks" );
 #endif
 	uberGrid = clCreateBuffer( Kernel::GetContext(), CL_MEM_READ_WRITE, UBERWIDTH * UBERHEIGHT * UBERDEPTH, 0, 0 );
-	uberGridUpdater = new Kernel( renderer->GetProgram(), "updateUberGrid" );
+	uberGridUpdater = new Kernel(kernelfile, "updateUberGrid" );
 	uberGridUpdater->SetArgument( 0, &devmem );
 	uberGridUpdater->SetArgument( 1, &uberGrid );
 	targetTextureID = targetID;
@@ -163,9 +177,9 @@ World::World( const uint targetID )
 // ----------------------------------------------------------------------------
 World::~World()
 {
-	cl_program sharedProgram = renderer->GetProgram();
+	cl_program sharedProgram = currentRenderer->GetProgram();
 	delete committer;
-	delete renderer;
+	delete currentRenderer;
 	_aligned_free( gridOrig ); // grid itself gets changed after allocation
 	_aligned_free( brick );
 #if ONEBRICKBUFFER == 1
@@ -1508,16 +1522,6 @@ void World::Render()
 		params.R0 = RandomUInt();
 		params.skyWidth = skySize.x;
 		params.skyHeight = skySize.y;
-		static uint frame = 0;
-		params.frame = frame++ & 255;
-		static uint framecount = 0;
-		if (dirty)
-		{
-			framecount = 0;
-		}
-		params.framecount = framecount++;
-		params.accumulate = accumulate;
-		params.dirty = dirty;
 
 		for (int i = 0; i < 6; i++) params.skyLight[i] = skyLight[i];
 		params.skyLightScale = Game::skyDomeLightScale;
@@ -1526,49 +1530,76 @@ void World::Render()
 		if (!screen)
 		{
 			screen = new Buffer( targetTextureID, Buffer::TARGET );
-		#if TAA == 0 && ACCUMULATOR == 0
-			renderer->SetArgument( 0, screen);
+		
+			int renderer_arg_i = 0;
+		#if ACCUMULATOR == 1
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
+		#elif TAA == 1
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
+		#elif RIS == 1
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 		#else
-			renderer->SetArgument( 0, tmpFrame );
+			currentRenderer->SetArgument(renderer_arg_i++, screen);
 		#endif
-			renderer->SetArgument( 1, paramBuffer );
-			renderer->SetArgument( 2, &gridMap );
-			renderer->SetArgument( 3, sky );
-			renderer->SetArgument( 4, blueNoise );
-			renderer->SetArgument( 5, &uberGrid );
+
+			currentRenderer->SetArgument(renderer_arg_i++, paramBuffer );
+
+#if RIS == 1
+			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, initialSamplingBuffer);
+#endif
+			currentRenderer->SetArgument(renderer_arg_i++, &gridMap );
+			currentRenderer->SetArgument(renderer_arg_i++, sky );
+			currentRenderer->SetArgument(renderer_arg_i++, blueNoise );
+			currentRenderer->SetArgument(renderer_arg_i++, &uberGrid );
+
 		#if ONEBRICKBUFFER == 1
-			renderer->SetArgument( 6, brickBuffer );
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer );
 		#else
-			renderer->SetArgument( 6, brickBuffer[0] );
-			renderer->SetArgument( 7, brickBuffer[1] );
-			renderer->SetArgument( 8, brickBuffer[2] );
-			renderer->SetArgument( 9, brickBuffer[3] );
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[0] );
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[1] );
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[2] );
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[3] );
 		#endif
+
 		}
-		static int histIn = 0, histOut = 1;
-	#if ACCUMULATOR == 1
-		renderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+
+	#if RIS == 1
+		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 		accumulatorFinalizer->SetArgument(0, screen);
 		accumulatorFinalizer->SetArgument(1, tmpFrame);
-		accumulatorFinalizer->SetArgument(2, history[histIn]);
+		accumulatorFinalizer->SetArgument(2, accumulator);
 		accumulatorFinalizer->SetArgument(3, paramBuffer);
 		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
-	#elif TAA == 0
-		renderer->Run( screen, make_int2( 8, 16 ), 0, &renderDone );
-	#else
+	#elif ACCUMULATOR == 1
+		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		accumulatorFinalizer->SetArgument(0, screen);
+		accumulatorFinalizer->SetArgument(1, tmpFrame);
+		accumulatorFinalizer->SetArgument(2, accumulator);
+		accumulatorFinalizer->SetArgument(3, paramBuffer);
+		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+	#elif TAA == 1
+		static int histIn = 0, histOut = 1;
 		// renderer->Run( screen, make_int2( 8, 16 ) );
-		renderer->Run2D( make_int2( SCRWIDTH, SCRHEIGHT ), make_int2( 8, 16 ) );
-		finalizer->SetArgument( 0, history[histIn] );
-		finalizer->SetArgument( 1, history[histOut] );
-		finalizer->SetArgument( 2, tmpFrame );
-		finalizer->SetArgument( 3, paramBuffer );
-		finalizer->Run2D( make_int2( SCRWIDTH, SCRHEIGHT ), make_int2( 8, 16 ) );
-		unsharpen->SetArgument( 0, screen );
-		unsharpen->SetArgument( 1, history[histOut] );
-		unsharpen->Run( screen, make_int2( 8, 16 ), 0, &renderDone );
+		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		finalizer->SetArgument(0, historyTAA[histIn]);
+		finalizer->SetArgument(1, historyTAA[histOut]);
+		finalizer->SetArgument(2, tmpFrame);
+		finalizer->SetArgument(3, paramBuffer);
+		finalizer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		unsharpen->SetArgument(0, screen);
+		unsharpen->SetArgument(1, historyTAA[histOut]);
+		unsharpen->Run(screen, make_int2(8, 16), 0, &renderDone);
 		// swap
-		swap( histIn, histOut );
+		swap(histIn, histOut);
+	#else
+		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
+
+		params.frame = params.frame + 1 & 255;
+		if (params.accumulate) params.framecount = params.framecount + 1;
+		else params.framecount = 0;
 	}
 }
 

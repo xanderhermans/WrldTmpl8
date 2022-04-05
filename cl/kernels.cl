@@ -8,6 +8,8 @@
 #define BRICKPARAMS brick0, brick1, brick2, brick3
 #endif
 
+#include "cl/ris.cl"
+
 float4 render_whitted( const float2 screenPos, __constant struct RenderParams* params,
 	__read_only image3d_t grid,
 	__global const PAYLOAD* brick0,
@@ -41,7 +43,65 @@ float4 render_whitted( const float2 screenPos, __constant struct RenderParams* p
 	return (float4)(pixel * (1.0f / (AA_SAMPLES * AA_SAMPLES)), dist);
 }
 
-float4 render_gi( const float2 screenPos, __constant struct RenderParams* params,
+float4 render_gi(const float2 screenPos, __constant struct RenderParams* params,
+	__read_only image3d_t grid,
+	__global const PAYLOAD* brick0,
+#if ONEBRICKBUFFER == 0
+	__global const PAYLOAD* brick1, __global const PAYLOAD* brick2, __global const PAYLOAD* brick3,
+#endif
+	__global float4* sky, __global const uint* blueNoise,
+	__global const unsigned char* uberGrid
+)
+{
+	// trace primary ray
+	float dist;
+	uint side = 0;
+	const float3 D = GenerateCameraRay(screenPos, params);
+	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
+	const float skyLightScale = params->skyLightScale;
+	// visualize result: simple hardcoded directional lighting using arbitrary unit vector
+	if (voxel == 0) return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
+	const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
+	float3 incoming = (float3)(0, 0, 0);
+	const int x = (int)screenPos.x, y = (int)screenPos.y;
+	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
+	const float4 I = (float4)(params->E + D * dist, 0);
+	for (int i = 0; i < GIRAYS; i++)
+	{
+		const float r0 = blueNoiseSampler(blueNoise, x, y, i + GIRAYS * params->frame, 0);
+		const float r1 = blueNoiseSampler(blueNoise, x, y, i + GIRAYS * params->frame, 1);
+		const float3 N = VoxelNormal(side, D);
+		const float4 R = (float4)(DiffuseReflectionCosWeighted(r0, r1, N), 1);
+		uint side2;
+		float dist2;
+		const uint voxel2 = TraceRay(I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
+		const float3 N2 = VoxelNormal(side2, R.xyz);
+		if (0 /* for comparing against ground truth */) // get_global_id( 0 ) % SCRWIDTH < SCRWIDTH / 2)
+		{
+			if (voxel2 == 0) incoming += skyLightScale * SampleSky((float3)(R.x, R.z, R.y), sky, params->skyWidth, params->skyHeight); else /* secondary hit */
+			{
+				const float4 R2 = (float4)(DiffuseReflectionCosWeighted(r0, r1, N2), 1);
+				incoming += INVPI * ToFloatRGB(voxel2) * skyLightScale * SampleSky((float3)(R2.x, R2.z, R2.y), sky, params->skyWidth, params->skyHeight);
+			}
+		}
+		else
+		{
+			float3 toAdd = (float3)skyLightScale, M = N;
+			if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB(voxel2), M = N2;
+			float4 sky;
+			if (M.x < -0.9f) sky = params->skyLight[0];
+			if (M.x > 0.9f) sky = params->skyLight[1];
+			if (M.y < -0.9f) sky = params->skyLight[2];
+			if (M.y > 0.9f) sky = params->skyLight[3];
+			if (M.z < -0.9f) sky = params->skyLight[4];
+			if (M.z > 0.9f) sky = params->skyLight[5];
+			incoming += toAdd * sky.xyz;
+		}
+	}
+	return (float4)(BRDF1 * incoming * (1.0f / GIRAYS), dist);
+}
+
+float4 render_di( const float2 screenPos, __constant struct RenderParams* params,
 	__read_only image3d_t grid,
 	__global const PAYLOAD* brick0,
 #if ONEBRICKBUFFER == 0
@@ -59,12 +119,12 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f; //AA
 	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
 	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
-	const uint voxel = TraceRay( (float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */ );
+	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	const float skyLightScale = params->skyLightScale;
 
 	if (voxel == 0) // exit the scene
 	{
-		return (float4)(0,0,0,1e20f);
+		return (float4)(0, 0, 0, 1e20f);
 		//return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
 	}
 	if (IsEmitter(voxel)) // first bounce hit an emitter
@@ -73,7 +133,7 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 		return (float4)(ToFloatRGB(voxel) * EmitStrength(voxel), 1e20f);
 	}
 
-	const float3 BRDF1 = INVPI * ToFloatRGB( voxel );
+	const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
 	const float4 I = (float4)(params->E + D * dist, 0);
 
 	int stratum_x = params->frame & 15;
@@ -90,27 +150,86 @@ float4 render_gi( const float2 screenPos, __constant struct RenderParams* params
 #endif
 
 	const float3 N = VoxelNormal(side, D);
-	const float4 R = (float4)(DiffuseReflectionCosWeighted(r0, r1, N), 1);
-	const float NdotL = dot(N, R.xyz);
-	const float PDF = NdotL * INVPI;
+	const float3 R = UniformSampleHemisphere(r0, r1, N);
+	const float NdotL = max(0.0, dot(N, R));
+	const float INVPDF = TWOPI;
 
 	uint side2;
 	float dist2;
-	const uint voxel2 = TraceRay(I + 0.1f * (float4)(N, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
-	if (!IsEmitter(voxel2)) // random bounce did not hit an emitter
-	{
-		return (float4)(0, 0, 0, 1e20f);
-	}
-	
-	const float3 sampleL = ToFloatRGB(voxel2)* EmitStrength(voxel2);
+	const uint voxel2 = TraceRay(I + 0.1f * (float4)(N, 0), (float4)(R, 1.0), &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
 
-	const float3 incoming = sampleL * BRDF1 / PDF;
+	const float3 sampleL = ToFloatRGB(voxel2) * EmitStrength(voxel2);
+
+	//const float3 contribution = ToFloatRGB(voxel) * EmitStrength(voxel) * INVPI;
+	//const float3 incoming = (sampleL * BRDF1) * NdotL * PI * 2.0f;
+	//const float3 incoming = (sampleL * NdotL / PDF) * BRDF1 + contribution;
+	const float3 incoming = (sampleL * INVPDF * NdotL) * BRDF1;
 	return (float4)(incoming, dist);
 }
 
-// renderTAA: main rendering entry point. Forwards the request to either a basic
-// renderer or a path tracer with basic indirect light. 'NoTAA' version below.
-__kernel void renderTAA( __global float4* frame, __constant struct RenderParams* params,
+float4 render_di_gfxexp(const float2 screenPos, __constant struct RenderParams* params,
+	__read_only image3d_t grid,
+	__global const PAYLOAD* brick0,
+#if ONEBRICKBUFFER == 0
+	__global const PAYLOAD* brick1, __global const PAYLOAD* brick2, __global const PAYLOAD* brick3,
+#endif
+	__global float4* sky, __global const uint* blueNoise,
+	__global const unsigned char* uberGrid
+)
+{
+	// trace primary ray
+	float dist;
+	uint side = 0;
+	const int x = (int)screenPos.x, y = (int)screenPos.y;
+	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
+	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f; //AA
+	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
+	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
+	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
+	const float skyLightScale = params->skyLightScale;
+
+	if (voxel == 0) // exit the scene
+	{
+		return (float4)(0, 0, 0, 1e20f);
+		//return (float4)(SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight), 1e20f);
+	}
+	
+	const float3 contribution = ToFloatRGB(voxel) * EmitStrength(voxel) * INVPI;
+
+	const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
+
+	const float4 I = (float4)(params->E + D * dist, 0);
+
+	int stratum_x = params->frame & 15;
+	int stratum_y = params->frame >> 4;
+
+	const float INV16 = 1.0f / 16.0f;
+
+#if 1 // stratified
+	float r0 = stratum_x * INV16 + RandomFloat(&seed) * INV16;
+	float r1 = stratum_y * INV16 + RandomFloat(&seed) * INV16;
+#else
+	float r0 = RandomFloat(&seed);
+	float r1 = RandomFloat(&seed);
+#endif
+
+	const float3 N = VoxelNormal(side, D);
+	const float3 R = UniformSampleHemisphere(r0, r1, N);
+	const float NdotL = max(0.0, dot(N, R));
+	const float INVPDF = TWOPI;
+
+	uint side2;
+	float dist2;
+	const uint voxel2 = TraceRay(I + 0.1f * (float4)(N, 0), (float4)(R, 1.0), &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
+
+	const float3 sampleL = ToFloatRGB(voxel2) * EmitStrength(voxel2) * INVPI;
+
+	//const float3 incoming = sampleL * BRDF1 / PDF + contribution;
+	const float3 incoming = (sampleL * INVPDF * NdotL) * BRDF1 + contribution;
+	return (float4)(incoming, dist);
+}
+
+__kernel void renderPathTracer(__global float4* frame, __constant struct RenderParams* params,
 	__read_only image3d_t grid, __global float4* sky, __global const uint* blueNoise,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
 #if ONEBRICKBUFFER == 0
@@ -119,11 +238,32 @@ __kernel void renderTAA( __global float4* frame, __constant struct RenderParams*
 )
 {
 	// produce primary ray for pixel
-	const int x = get_global_id( 0 ), y = get_global_id( 1 );
+	const int x = get_global_id(0), y = get_global_id(1);
+#if GFXEXP
+	float4 pixel = render_di_gfxexp((float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
+#else 
+	float4 pixel = render_di((float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
+#endif
+	// store pixel in linear color space, to be processed by finalize kernel for TAA
+	frame[x + y * SCRWIDTH] = pixel; // depth in w
+}
+
+// renderTAA: main rendering entry point. Forwards the request to either a basic
+// renderer or a path tracer with basic indirect light. 'NoTAA' version below.
+__kernel void renderTAA(__global float4* frame, __constant struct RenderParams* params,
+	__read_only image3d_t grid, __global float4* sky, __global const uint* blueNoise,
+	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
+#if ONEBRICKBUFFER == 0
+	, __global const PAYLOAD* brick1, __global const PAYLOAD* brick2, __global const PAYLOAD* brick3
+#endif
+)
+{
+	// produce primary ray for pixel
+	const int x = get_global_id(0), y = get_global_id(1);
 #if GIRAYS == 0
-	float4 pixel = render_whitted( (float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid );
+	float4 pixel = render_whitted((float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
 #else
-	float4 pixel = render_gi( (float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid );
+	float4 pixel = render_gi((float2)(x, y), params, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
 #endif
 	// store pixel in linear color space, to be processed by finalize kernel for TAA
 	frame[x + y * SCRWIDTH] = pixel; // depth in w
@@ -150,35 +290,24 @@ __kernel void renderNoTAA( write_only image2d_t outimg, __constant struct Render
 	write_imagef( outimg, (int2)(x, y), (float4)(LinearToSRGB( ToneMapFilmic_Hejl2015( pixel.xyz, 1 ) ), 1) );
 }
 
-__kernel void finalizeA(write_only image2d_t outimg, __global float4* pixels, __global float4* accumulator, __constant struct RenderParams* params)
+__kernel void accumulatorFinalizer(write_only image2d_t outimg, __global float4* pixels, __global float4* accumulator, __constant struct RenderParams* params)
 {
 	const int x = get_global_id(0);
 	const int y = get_global_id(1);
-	if (x == 0 || y == 0 || x >= SCRWIDTH - 1 || y >= SCRHEIGHT - 1) return;
+	if (x >= SCRWIDTH || y >= SCRHEIGHT) return;
 	
 	float4 frameColor = pixels[x + y * SCRWIDTH];
 	float4 color;
-	if (params->dirty || params->framecount == 0)
+	float4 prevColorResult = (float4)(0.0, 0.0, 0.0, 0.0);
+	int numFramesAccumulator = params->framecount;
+	if (numFramesAccumulator > 0)
 	{
-		accumulator[x + y * SCRWIDTH] = frameColor;
-		color = frameColor;
+		prevColorResult = accumulator[x + y * SCRWIDTH];
 	}
-	else
-	{
-#if 1
-		// Cumulative moving average
-		// Instead of simply accumulating so we always have color values ready.
-		float4 cma = accumulator[x + y * SCRWIDTH];
-		float invframecountplus1 = 1 / (float)(params->framecount + 1);
-		float n1 = (params->framecount) * invframecountplus1;
-		float4 cman1 = frameColor * invframecountplus1 + n1 * cma;
-		accumulator[x + y * SCRWIDTH] = cman1;
-		color = cman1;
-#else
-		accumulator[x + y * SCRWIDTH] += frameColor;
-		color = accumulator[x + y * SCRWIDTH] / (float)(params->framecount + 1);
-#endif
-	}
+	float curWeight = 1.0f / (1 + numFramesAccumulator);
+	float3 colorResult = (1 - curWeight) * prevColorResult.xyz + curWeight * frameColor.xyz;
+	color = (float4)(colorResult.xyz, 1.0f);
+	accumulator[x + y * SCRWIDTH] = color;
 	write_imagef(outimg, (int2)(x, y), (float4)(color.xyz, 1));
 	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(color.xyz), 1));
 	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(ToneMapFilmic_Hejl2015(color.xyz, 1)), 1));

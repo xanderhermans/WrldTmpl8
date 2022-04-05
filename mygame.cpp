@@ -34,10 +34,93 @@ void MyGame::Init()
 	{
 		WorldToOBJ(GetWorld(), export_path);
 	}
+
+	GetWorld()->GetRenderParams().accumulate = true;
+
+	SetupLightBuffers();
 }
 
-SHORT lastQstate = 0;
+void MyGame::SetupLightBuffers()
+{
+	World& world = *GetWorld();
+
+	uint sizex = GRIDWIDTH * BRICKDIM;
+	uint sizey = GRIDHEIGHT * BRICKDIM;
+	uint sizez = GRIDDEPTH * BRICKDIM;
+
+	vector<Light> lights;
+
+	for (uint y = 0; y < sizey; y++)
+	{
+		for (uint z = 0; z < sizez; z++)
+		{
+			for (uint x = 0; x < sizex; x++)
+			{
+				ushort c = world.Get(x, y, z);
+				bool isEmitter = EmitStrength(c) > 0;
+				if (isEmitter)
+				{
+					Light light;
+					light.position = x + z * sizex + y * sizex * sizez;
+					light.voxel = c;
+					light.weight = 1;
+					lights.push_back(light);
+				}
+			}
+		}
+	}
+
+	uint numberOfLights = lights.size();
+	Buffer* lightbuffer = world.GetLightsBuffer();
+	if (!lightbuffer)
+	{
+		printf("Light buffer does not exist, creating.\n");
+		lightbuffer = new Buffer(sizeof(Light) / 4 * numberOfLights * 2, Buffer::DEFAULT, new Light[numberOfLights * 2]);
+		lightbuffer->ownData = true;
+	}
+	else if (lightbuffer->size < numberOfLights)
+	{
+		printf("Light buffer too small, resizing.\n");
+		delete lightbuffer;
+		lightbuffer = new Buffer(sizeof(Light) / 4 * numberOfLights * 2, 0, new Light[numberOfLights * 2]);
+		lightbuffer->ownData = true;
+	}
+
+	printf("Number of emitting voxels: %d\n", numberOfLights);
+
+	Light* lightsData = (Light*)lightbuffer->hostBuffer;
+	for (int i = 0; i < lights.size(); i++)
+	{
+		auto light = lights[i];
+		light.weight /= (float)lights.size();
+		lightsData[i] = light;
+	}
+
+	world.GetRenderParams().numberOfLights = numberOfLights;
+	lightbuffer->CopyToDevice();
+	world.SetLightsBuffer(lightbuffer);
+
+
+	//Reservoir reservoirs[10];
+	//for (int i = 0; i < 10; i++)
+	//{
+	//	reservoirs[i].position_selected = 0;
+	//	reservoirs[i].sumOfWeights = 0;
+	//	reservoirs[i].streamLength = 0;
+	//	printf("res %d %d %f\n", reservoirs[i].position_selected, reservoirs[i].streamLength, reservoirs[i].sumOfWeights);
+	//	while (reservoirs[i].streamLength < 10)
+	//	{
+	//		int random_index = RandomFloat() * (lights.size() - 1);
+	//		Light& randomlight = lightsData[random_index];
+	//		UpdateReservoirL(reservoirs[i], randomlight, RandomFloat());
+	//		printf("res %d %d %f\n", reservoirs[i].position_selected, reservoirs[i].streamLength, reservoirs[i].sumOfWeights);
+	//	}
+	//}
+}
+
 SHORT lastEstate = 0;
+SHORT lastQstate = 0;
+SHORT lastSpaceState = 0;
 void MyGame::HandleControls(float deltaTime)
 {
 	if (!isFocused) return; // ignore controls if window doesnt have focus
@@ -48,8 +131,9 @@ void MyGame::HandleControls(float deltaTime)
 
 	SHORT qState = GetAsyncKeyState('Q');
 	SHORT eState = GetAsyncKeyState('E');
-	if (qState == 0 && qState != lastQstate) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
-	if (eState == 0 && eState != lastEstate) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
+	SHORT spaceState = GetAsyncKeyState(VK_SPACE);
+	if (qState == 0 && qState != lastEstate) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
+	if (eState == 0 && eState != lastQstate) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
 
 	if (GetAsyncKeyState('W')) { O += speed * D; dirty = true; }
 	else if (GetAsyncKeyState('S')) { O -= speed * D; dirty = true; }
@@ -70,12 +154,26 @@ void MyGame::HandleControls(float deltaTime)
 	
 	LookAt(O, O + D);
 
-	if (GetAsyncKeyState(VK_SPACE)) GetWorld()->accumulate = !GetWorld()->accumulate;
+	if (spaceState == 0 && spaceState != lastSpaceState)
+	{
+		GetWorld()->GetRenderParams().accumulate = !GetWorld()->GetRenderParams().accumulate;
+		dirty = true;
+	}
 	if (GetAsyncKeyState('X')) dirty = true;
-	GetWorld()->dirty = dirty;
+	if (dirty)
+	{
+		GetWorld()->GetRenderParams().framecount = 0;
+		GetWorld()->GetRenderParams().frame = 0;
+	}
 
-	lastQstate = qState;
-	lastEstate = eState;
+	lastEstate = qState;
+	lastQstate = eState;
+	lastSpaceState = spaceState;
+}
+
+void MyGame::PreRender()
+{
+	SubSampleLightSamples();
 }
 
 void MyGame::PrintStats()
@@ -90,6 +188,56 @@ void MyGame::PrintStats()
 	printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\n", D.x, D.y, D.z, O.x, O.y, O.z, fov);
 }
 
+const int numberOfInitialSamples = 1000;
+const int numberOfCandidates = 32;
+
+void MyGame::SubSampleLightSamples()
+{
+	World& world = *GetWorld();
+
+	Buffer* reservoirbuffer = world.GetReservoirsBuffer();
+	if (!reservoirbuffer)
+	{
+		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * SCRWIDTH * SCRHEIGHT, 0, new Reservoir[SCRWIDTH * SCRHEIGHT]);
+		reservoirbuffer->CopyToDevice();
+		world.SetReservoirBuffer(reservoirbuffer);
+	}
+
+	Buffer* initialSamplingBuffer = world.GetInitialSamplingBuffer();
+	if (!initialSamplingBuffer)
+	{
+		initialSamplingBuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfInitialSamples, 0, new Reservoir[numberOfInitialSamples]);
+		world.GetRenderParams().numberOfInitialSamples = numberOfInitialSamples;
+		world.SetInitialSamplingBuffer(initialSamplingBuffer);
+	}
+
+	Light* lightsData = (Light*)world.GetLightsBuffer()->hostBuffer;
+	if (!world.GetLightsBuffer() || !world.GetLightsBuffer()->hostBuffer)
+	{
+		printf("Light buffer not set up yet. No initial sampling\n"); 
+		return;
+	}
+	Reservoir* initialSamplings = (Reservoir*)initialSamplingBuffer->hostBuffer;
+	const int numberOfLights = world.GetRenderParams().numberOfLights;
+	for (int i = 0; i < numberOfInitialSamples; i++)
+	{
+		Reservoir& res = initialSamplings[i];
+		res.position_selected = 0;
+		res.streamLength = 0;
+		res.sumOfWeights = 0;
+		res.type = 0;
+
+		for (int j = 0; j < numberOfCandidates; j++)
+		{
+			int random_index = RandomFloat() * (numberOfLights - 1);
+			Light& randomlight = lightsData[random_index];
+			UpdateReservoirL(res, randomlight, RandomFloat());
+		}
+	}
+
+	initialSamplingBuffer->CopyToDevice();
+}
+
 // -----------------------------------------------------------
 // Main application tick function
 // -----------------------------------------------------------
@@ -102,7 +250,7 @@ void MyGame::Tick(float deltaTime)
 
 	// clear line
 	printf("                                                            \r");
-	printf("Frame: %d x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, O.x, O.y, O.z);
+	printf("Frame: %d acc: %d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, O.x, O.y, O.z);
 
 	DumpScreenBuffer();
 }

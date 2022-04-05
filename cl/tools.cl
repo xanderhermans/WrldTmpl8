@@ -22,6 +22,30 @@ float3 DiffuseReflectionCosWeighted( const float r0, const float r1, const float
 	return (c * term2 * T) + (s * term2) * B + sqrt( r1 ) * N;
 }
 
+// https://www.scratchapixel.com/code.php?id=34&origin=/lessons/3d-basic-rendering/global-illumination-path-tracing
+float3 UniformSampleHemisphere(const float r1, const float r2, const float3 N)
+{
+	float3 Nt, Nb;
+	if (fabs(N.x) > fabs(N.y))
+		Nt = (float3)(N.z, 0, -N.x) / sqrt(N.x * N.x + N.z * N.z);
+	else
+		Nt = (float3)(0, -N.z, N.y) / sqrt(N.y * N.y + N.z * N.z);
+	Nb = cross(N, Nt);
+
+
+	// cos(theta) = r1 = y
+	// cos^2(theta) + sin^2(theta) = 1 -> sin(theta) = srtf(1 - cos^2(theta))
+	float sinTheta = sqrt(1 - r1 * r1);
+	float phi = TWOPI * r2;
+	float x = sinTheta * cos(phi);
+	float z = sinTheta * sin(phi);
+	return (float3)(
+		x * Nb.x + r1 * N.x + z * Nt.x,
+		x * Nb.y + r1 * N.y + z * Nt.y,
+		x * Nb.z + r1 * N.z + z * Nt.z
+		);
+}
+
 float blueNoiseSampler( const __global uint* blueNoise, int x, int y, int sampleIndex, int sampleDimension )
 {
 	// Adapated from E. Heitz. Arguments:
@@ -232,4 +256,14 @@ float3 VoxelNormal( const uint side, const float3 D )
 	if (side == 0) return (float3)(D.x > 0 ? -1 : 1, 0, 0 );
 	if (side == 1) return (float3)(0, D.y > 0 ? -1 : 1, 0 );
 	if (side == 2) return (float3)(0, 0, D.z > 0 ? -1 : 1 );
+}
+
+void UpdateReservoir(struct Reservoir* _this, const struct Light* candidate, float r0)
+{
+	_this->sumOfWeights += candidate->weight;
+	_this->streamLength += 1;
+	if (r0 < candidate->weight / _this->sumOfWeights)
+	{
+		_this->position_selected = candidate->position;
+	}
 }

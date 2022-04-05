@@ -2,6 +2,7 @@
 
 World* GetWorld();
 void ClearWorld();
+float2 GetCursorPosition();
 void FillWorld( const uint c );
 void WorldXScroll( const int offset );
 void WorldYScroll( const int offset );

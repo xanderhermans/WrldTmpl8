@@ -54,6 +54,11 @@ void Plot( const int3 pos, const uint c ) { world->Set( pos.x, pos.y, pos.z, c )
 uint Read( const int x, const int y, const int z ) { return world->Get( x, y, z ); }
 uint Read( const int3 pos ) { return world->Get( pos.x, pos.y, pos.z ); }
 uint Read( const uint3 pos ) { return world->Get( pos.x, pos.y, pos.z ); }
+float2 GetCursorPosition() { 
+	double xpos, ypos;
+	glfwGetCursorPos(window, &xpos, &ypos);
+	return make_float2(xpos, ypos);
+}
 void Sphere( const float x, const float y, const float z, const float r, const uint c )
 {
 	world->Sphere( x, y, z, r, c );
@@ -396,6 +401,7 @@ void main()
 		deltaTime = min( 500.0f, 1000.0f * timer.elapsed() );
 		timer.reset();
 		// process world changes made in the previous frame and start rendering on GPU
+		game->PreRender();
 		if (Game::autoRendering)
 		{
 			world->Render(); // GPU ray tracing code runs asynchronously, i.e. in the background

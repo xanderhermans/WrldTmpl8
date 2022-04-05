@@ -182,13 +182,17 @@ public:
 	float3 GetCameraPos() { return make_float3( camMat[3], camMat[7], camMat[11] ); }
 	void SetCameraPos( const float3 P ) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
 	mat4& GetCameraMatrix() { return camMat; }
-	RenderParams GetRenderParams() { return params; }
+	RenderParams& GetRenderParams() { return params; }
 	cl_event& GetRenderDoneEventHandle() { return renderDone; }
 	Buffer* GetFrameBuffer() { return tmpFrame; }
-	Buffer* GetAccumulatorBuffer() { return history[0]; }
-	// render flow
-	bool dirty = false;
-	bool accumulate = false;
+	Buffer* GetAccumulatorBuffer() { return accumulator; }
+	Buffer* GetLightsBuffer() { return lightsBuffer; }
+	//Light* GetLights() { return lights; }
+	Buffer* GetReservoirsBuffer() { return reservoirBuffer; }
+	Buffer* GetInitialSamplingBuffer() { return initialSamplingBuffer; }
+	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
+	void SetReservoirBuffer(Buffer* buffer) { reservoirBuffer = buffer; }
+	void SetInitialSamplingBuffer(Buffer* buffer) { initialSamplingBuffer = buffer; }
 	void Commit();
 	void Render();
 	float GetRenderTime() { return renderTime; }
@@ -426,15 +430,23 @@ private:
 	uint targetTextureID = 0;			// OpenGL render target
 	int prevFrameIdx = 0;				// index of the previous frame buffer that will be used for TAA
 	Buffer* paramBuffer = 0;			// OpenCL buffer that stores renderer parameters
-	Buffer* history[2] = { 0 };			// OpenCL buffers for history data (previous frame)
+	Buffer* historyTAA[2] = { 0 };			// OpenCL buffers for history data (previous frame)
 	Buffer* tmpFrame = 0;				// OpenCL buffer to store rendered frame in linear color space
+	Buffer* accumulator = 0;
 	Buffer* sky = 0;					// OpenCL buffer for a HDR skydome
 	Buffer* blueNoise = 0;				// blue noise data
+	Buffer* lightsBuffer = 0;
+	Buffer* reservoirBuffer = 0;
+	Buffer* initialSamplingBuffer = 0;
+	//Light* lights = 0;
+	bool syncLights = false;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
-	Kernel* renderer, * committer;		// render kernel and commit kernel
+	Kernel* currentRenderer;
+	Kernel* committer;					// render kernel and commit kernel
 	Kernel* finalizer, * unsharpen;		// TAA finalization kernels
-	Kernel* accumulatorFinalizer;
+	Kernel* accumulatorFinalizer;		// Path tracer finalization kernels
+	Kernel* rendererTAA, * rendererNoTAA, * rendererRIS, * rendererPathTracer;
 	Kernel* batchTracer;				// ray batch tracing kernel for inline tracing
 	Kernel* batchToVoidTracer;			// ray batch tracing kernel for inline tracing from solid to void
 #if MORTONBRICKS == 1

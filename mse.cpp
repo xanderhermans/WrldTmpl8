@@ -8,6 +8,10 @@ Game* CreateGame() { return new MSE(); }
 
 static vector<Image*> imagebuffer;
 static int imageindex = 0;
+static float currentImageEnergy = 0;
+static int cursor_x = 0;
+static int cursor_y = 0;
+static int sample_radius = 1;
 
 float energyInRaster(const float4* data, int width, int height)
 {
@@ -69,7 +73,7 @@ void MSE::Render(Surface* surface)
     if (imagebuffer.size() > 0 && plottedImage != imagebuffer[imageindex])
     {
 		plottedImage = imagebuffer[imageindex];
-		printf("Swapping image %d energy: %f\n", imageindex, energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height));
+		currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
 		if (plottedImage->width > surface->width || plottedImage->height > surface->height)
 		{
 			printf("Image is larger than surface. Implicit cropping happening.\n");
@@ -83,29 +87,114 @@ void MSE::Render(Surface* surface)
 				uint32_t c = ((std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 0) |
 					(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
 					(std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 16) |
-					(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
+					255 << 24);
+					//(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
                 surface->Plot(x, y, c);
             }
         }
     }
 }
 
-SHORT lastQstate = 0;
-SHORT lastEstate = 0;
+struct KeyHandler
+{
+	SHORT last = 0;
+	char key = 0;
+
+	bool IsTyped()
+	{
+		SHORT state = GetAsyncKeyState(key);
+		SHORT _last = last;
+		last = state;
+		return state == 0 && _last != state;
+	}
+};
+
+KeyHandler qhandler = {0, 'Q'};
+KeyHandler ehandler = {0, 'E'};
+KeyHandler radiusp = { 0, 'X' };
+KeyHandler radiusm = { 0, 'Z' };
+KeyHandler numhandlers[10] = {
+	{0, '0'},
+	{0, '1'},
+	{0, '2'},
+	{0, '3'},
+	{0, '4'},
+	{0, '5'},
+	{0, '6'},
+	{0, '7'},
+	{0, '8'}, 
+	{0, '9'}, 
+};
 void MSE::HandleControls(float deltaTime)
 {
-	SHORT qState = GetAsyncKeyState('Q');
-	SHORT eState = GetAsyncKeyState('E');
-	if (qState == 0 && lastQstate != qState)
+	if (ehandler.IsTyped())
 	{
-		imageindex = (imageindex + 1) % imagebuffer.size();
+		imageindex = imageindex + 1;
 	}
-	if (eState == 0 && lastEstate != eState)
+	if (qhandler.IsTyped())
 	{
-		imageindex = (imageindex - 1) % imagebuffer.size();
+		imageindex = imageindex - 1;
 	}
-	lastQstate = eState;
-	lastQstate = qState;
+
+	for (int i = 0; i < 10; i++)
+	{
+		if (numhandlers[i].IsTyped())
+		{
+			imageindex = i;
+		}
+	}
+
+	if (imageindex < 0)
+	{
+		imageindex = imagebuffer.size() - 1;
+	}
+	else if (imageindex >= imagebuffer.size())
+	{
+		imageindex = 0;
+	}
+
+	float2 pos = GetCursorPosition();
+	cursor_x = pos.x;
+	cursor_y = pos.y;
+
+	cursor_x = max(min(cursor_x, SCRWIDTH), 0);
+	cursor_y = max(min(cursor_y, SCRHEIGHT), 0);
+
+	if (radiusp.IsTyped())
+	{
+		sample_radius++;
+	}
+
+	if (radiusm.IsTyped())
+	{
+		sample_radius = max(1, sample_radius - 1);
+	}
+}
+
+float3 energyAroundCoord(int x, int y, int radius, float4* buff, int width, int height)
+{
+	double energy_x = 0;
+	double energy_y = 0;
+	double energy_z = 0;
+	int sample_count = 0;
+	for (int _y = max(y - radius + 1, 0); _y < min(height, y + radius); _y++)
+	{
+		for (int _x = max(x - radius + 1, 0); _x < min(width, x + radius); _x++)
+		{
+			float4 e = buff[_x + _y * width];
+			energy_x += e.x;
+			energy_y += e.y;
+			energy_z += e.z;
+			sample_count++;
+		}
+	}
+	sample_count = max(1, sample_count);
+	float3 energy = make_float3(
+		energy_x / sample_count,
+		energy_y / sample_count,
+		energy_z / sample_count
+	);
+	return energy;
 }
 
 // -----------------------------------------------------------
@@ -114,6 +203,11 @@ void MSE::HandleControls(float deltaTime)
 void MSE::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
+
+	float3 energy = energyAroundCoord(cursor_x, cursor_y, sample_radius, imagebuffer[imageindex]->buffer, imagebuffer[imageindex]->width, imagebuffer[imageindex]->height);
+	printf("                                                            \r");
+	printf("image_i:%d r:%d energy:%.3f cursor:%d %d:%.4f %.4f %.4f\r", imageindex, sample_radius, currentImageEnergy, cursor_x, cursor_y, energy.x, energy.y, energy.z);
+	//printf("image_i:%d energy:%.3f cursor:%d %d\r", imageindex, currentImageEnergy, cursor_x, cursor_y);
 }
 
 void Image::Load(std::filesystem::path path, Image& image)

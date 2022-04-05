@@ -51,6 +51,9 @@
     <None Include="cl\kernels.cl">
       <Filter>template\cl</Filter>
     </None>
+    <None Include="cl\ris.cl">
+      <Filter>template\cl</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">

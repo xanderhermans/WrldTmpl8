@@ -40,11 +40,16 @@
 // TAA, as in https://www.shadertoy.com/view/3sfBWs
 #define TAA			0	// 0 to disable, 1 to enable
 
+// RIS
+#define RIS			0
+
 // Accumulator
 #define ACCUMULATOR 1
 
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
+
+#define GFXEXP 0
 
 // some useful color names
 #ifdef VOXEL8
@@ -86,7 +91,25 @@ struct RenderParams
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
-	bool accumulate, dirty;
+	bool accumulate;
+	uint numberOfLights;
+	uint numberOfInitialSamples;
+};
+
+struct Light 
+{ 
+	uint _non; 
+	uint position; 
+	uint voxel; 
+	float weight; 
+};
+
+struct Reservoir 
+{ 
+	uint type; 
+	float sumOfWeights; 
+	uint streamLength; 
+	uint position_selected; 
 };
 
 // lighting for 6 normals for sky15.hdr
