@@ -142,8 +142,8 @@ float4 render_di( const float2 screenPos, __constant struct RenderParams* params
 	const float INV16 = 1.0f / 16.0f;
 
 #if 1 // stratified
-	float r0 = stratum_x * INV16 + RandomFloat(&seed) * INV16;
-	float r1 = stratum_y * INV16 + RandomFloat(&seed) * INV16;
+	float r0 = (stratum_x + RandomFloat(&seed)) * INV16;
+	float r1 = (stratum_y + RandomFloat(&seed)) * INV16;
 #else
 	float r0 = RandomFloat(&seed);
 	float r1 = RandomFloat(&seed);
@@ -300,6 +300,7 @@ __kernel void accumulatorFinalizer(write_only image2d_t outimg, __global float4*
 	float4 color;
 	float4 prevColorResult = (float4)(0.0, 0.0, 0.0, 0.0);
 	int numFramesAccumulator = params->framecount;
+	//int numFramesAccumulator = 0;
 	if (numFramesAccumulator > 0)
 	{
 		prevColorResult = accumulator[x + y * SCRWIDTH];

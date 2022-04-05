@@ -1142,7 +1142,7 @@ inline void UpdateReservoir(Reservoir& _this, Reservoir res, float r)
 	_this.streamLength += res.streamLength;
 	if (r < res.sumOfWeights / _this.sumOfWeights)
 	{
-		_this.position_selected = res.position_selected;
+		_this.light_index = res.light_index;
 	}
 }
 
@@ -1152,7 +1152,7 @@ inline void UpdateReservoirL(Reservoir& _this, Light light, float r)
 	_this.streamLength += 1;
 	if (r < light.weight / _this.sumOfWeights)
 	{
-		_this.position_selected = light.position;
+		_this.light_index = light.index;
 	}
 }
 

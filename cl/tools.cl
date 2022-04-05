@@ -264,6 +264,35 @@ void UpdateReservoir(struct Reservoir* _this, const struct Light* candidate, flo
 	_this->streamLength += 1;
 	if (r0 < candidate->weight / _this->sumOfWeights)
 	{
-		_this->position_selected = candidate->position;
+		_this->light_index = candidate->index;
 	}
+}
+
+int getRandomLightIndex(const int length, uint* seed)
+{
+	return RandomFloat(seed) * (length - 1);
+}
+
+uint3 indexToCoordinates(const uint index)
+{
+	const uint y = index / (MAPWIDTH * MAPDEPTH);
+	const uint z = (index / MAPWIDTH) % MAPDEPTH;
+	const uint x = index % MAPDEPTH;
+	return (uint3)(x, y, z);
+}
+
+uint Get(const uint x, const uint y, const uint z, 
+	__read_only image3d_t grid,
+	__global const PAYLOAD* brick)
+{
+	// calculate brick location in top-level grid
+	const uint bx = (x / BRICKDIM) & (GRIDWIDTH - 1);
+	const uint by = (y / BRICKDIM) & (GRIDHEIGHT - 1);
+	const uint bz = (z / BRICKDIM) & (GRIDDEPTH - 1);
+	//const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+	const uint g = read_imageui(grid, (int4)(bx, by, bz, 0)).x;
+	if ((g & 1) == 0 /* this is currently a 'solid' grid cell */) return g >> 1;
+	// calculate the position of the voxel inside the brick
+	const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
+	return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
 }

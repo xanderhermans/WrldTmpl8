@@ -114,6 +114,7 @@ World::World( const uint targetID )
 	committer = new Kernel(kernelfile, "commit" );
 	batchTracer = new Kernel(kernelfile, "traceBatch" );
 	batchToVoidTracer = new Kernel(kernelfile, "traceBatchToVoid" );
+	perPixelLightSampling = new Kernel(kernelfile, "initiate_per_pixel_samples");
 #if MORTONBRICKS == 1
 	encodeBricks = new Kernel(kernelfile, "encodeBricks" );
 #endif
@@ -1527,6 +1528,7 @@ void World::Render()
 		params.skyLightScale = Game::skyDomeLightScale;
 		// get render parameters to GPU and invoke kernel asynchronously
 		paramBuffer->CopyToDevice( false );
+
 		if (!screen)
 		{
 			screen = new Buffer( targetTextureID, Buffer::TARGET );
@@ -1566,7 +1568,13 @@ void World::Render()
 		}
 
 	#if RIS == 1
-		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		cl_event* ev;
+		perPixelLightSampling->SetArgument(0, paramBuffer);
+		perPixelLightSampling->SetArgument(1, lightsBuffer);
+		perPixelLightSampling->SetArgument(2, reservoirBuffer);
+		perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, ev);
+
+		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), ev);
 		accumulatorFinalizer->SetArgument(0, screen);
 		accumulatorFinalizer->SetArgument(1, tmpFrame);
 		accumulatorFinalizer->SetArgument(2, accumulator);

@@ -41,10 +41,11 @@
 #define TAA			0	// 0 to disable, 1 to enable
 
 // RIS
-#define RIS			0
+#define RIS			1
+#define NUMBEROFLIGHTCANDIDATES 32
 
 // Accumulator
-#define ACCUMULATOR 1
+#define ACCUMULATOR 0
 
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
@@ -98,7 +99,7 @@ struct RenderParams
 
 struct Light 
 { 
-	uint _non; 
+	uint index; 
 	uint position; 
 	uint voxel; 
 	float weight; 
@@ -109,7 +110,7 @@ struct Reservoir
 	uint type; 
 	float sumOfWeights; 
 	uint streamLength; 
-	uint position_selected; 
+	uint light_index; 
 };
 
 // lighting for 6 normals for sky15.hdr

@@ -44,9 +44,9 @@ void MyGame::SetupLightBuffers()
 {
 	World& world = *GetWorld();
 
-	uint sizex = GRIDWIDTH * BRICKDIM;
-	uint sizey = GRIDHEIGHT * BRICKDIM;
-	uint sizez = GRIDDEPTH * BRICKDIM;
+	uint sizex = MAPWIDTH;
+	uint sizey = MAPHEIGHT;
+	uint sizez = MAPDEPTH;
 
 	vector<Light> lights;
 
@@ -99,23 +99,6 @@ void MyGame::SetupLightBuffers()
 	world.GetRenderParams().numberOfLights = numberOfLights;
 	lightbuffer->CopyToDevice();
 	world.SetLightsBuffer(lightbuffer);
-
-
-	//Reservoir reservoirs[10];
-	//for (int i = 0; i < 10; i++)
-	//{
-	//	reservoirs[i].position_selected = 0;
-	//	reservoirs[i].sumOfWeights = 0;
-	//	reservoirs[i].streamLength = 0;
-	//	printf("res %d %d %f\n", reservoirs[i].position_selected, reservoirs[i].streamLength, reservoirs[i].sumOfWeights);
-	//	while (reservoirs[i].streamLength < 10)
-	//	{
-	//		int random_index = RandomFloat() * (lights.size() - 1);
-	//		Light& randomlight = lightsData[random_index];
-	//		UpdateReservoirL(reservoirs[i], randomlight, RandomFloat());
-	//		printf("res %d %d %f\n", reservoirs[i].position_selected, reservoirs[i].streamLength, reservoirs[i].sumOfWeights);
-	//	}
-	//}
 }
 
 SHORT lastEstate = 0;
@@ -222,7 +205,7 @@ void MyGame::SubSampleLightSamples()
 	for (int i = 0; i < numberOfInitialSamples; i++)
 	{
 		Reservoir& res = initialSamplings[i];
-		res.position_selected = 0;
+		res.light_index = 0;
 		res.streamLength = 0;
 		res.sumOfWeights = 0;
 		res.type = 0;

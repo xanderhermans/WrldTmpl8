@@ -442,6 +442,7 @@ private:
 	bool syncLights = false;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
+	Kernel* perPixelLightSampling;
 	Kernel* currentRenderer;
 	Kernel* committer;					// render kernel and commit kernel
 	Kernel* finalizer, * unsharpen;		// TAA finalization kernels
