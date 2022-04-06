@@ -438,10 +438,12 @@ private:
 	Buffer* lightsBuffer = 0;
 	Buffer* reservoirBuffer = 0;
 	Buffer* initialSamplingBuffer = 0;
+	Buffer* primaryHitBuffer = 0;
 	//Light* lights = 0;
 	bool syncLights = false;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
+	Kernel* albedoRender;
 	Kernel* perPixelLightSampling;
 	Kernel* currentRenderer;
 	Kernel* committer;					// render kernel and commit kernel

@@ -11,7 +11,8 @@ static int imageindex = 0;
 static float currentImageEnergy = 0;
 static int cursor_x = 0;
 static int cursor_y = 0;
-static int sample_radius = 1;
+static int sample_radius = 0;
+static int __count = 0;
 
 float energyInRaster(const float4* data, int width, int height)
 {
@@ -70,7 +71,7 @@ void MSE::Init()
 void MSE::Render(Surface* surface)
 {
     static Image* plottedImage = 0;
-    if (imagebuffer.size() > 0 && plottedImage != imagebuffer[imageindex])
+    if (imagebuffer.size() > 0 /*&& plottedImage != imagebuffer[imageindex]*/)
     {
 		plottedImage = imagebuffer[imageindex];
 		currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
@@ -93,21 +94,31 @@ void MSE::Render(Surface* surface)
             }
         }
     }
-}
 
-struct KeyHandler
-{
-	SHORT last = 0;
-	char key = 0;
-
-	bool IsTyped()
+	uint cursor_color = 0xff00ff;
+	__count = 1;
 	{
-		SHORT state = GetAsyncKeyState(key);
-		SHORT _last = last;
-		last = state;
-		return state == 0 && _last != state;
+		int j = cursor_x;
+		int i = cursor_y;
+		surface->Plot(j, i, cursor_color);
 	}
-};
+	for (int i = cursor_y - sample_radius; i < cursor_y + sample_radius; i++) {
+		for (int j = cursor_x; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j--) {
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+			{
+				surface->Plot(j, i, cursor_color);
+				__count++;
+			}
+		}
+		for (int j = cursor_x + 1; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j++) {
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+			{
+				surface->Plot(j, i, cursor_color);
+				__count++;
+			}
+		}
+	}
+}
 
 KeyHandler qhandler = {0, 'Q'};
 KeyHandler ehandler = {0, 'E'};
@@ -167,7 +178,7 @@ void MSE::HandleControls(float deltaTime)
 
 	if (radiusm.IsTyped())
 	{
-		sample_radius = max(1, sample_radius - 1);
+		sample_radius = max(0, sample_radius - 1);
 	}
 }
 
@@ -176,23 +187,46 @@ float3 energyAroundCoord(int x, int y, int radius, float4* buff, int width, int 
 	double energy_x = 0;
 	double energy_y = 0;
 	double energy_z = 0;
-	int sample_count = 0;
-	for (int _y = max(y - radius + 1, 0); _y < min(height, y + radius); _y++)
+	int count = 1;
 	{
-		for (int _x = max(x - radius + 1, 0); _x < min(width, x + radius); _x++)
+		int i = y;
+		int j = x;
+		float4 e = buff[j + i * width];
+		energy_x += e.x;
+		energy_y += e.y;
+		energy_z += e.z;
+	}
+
+	for (int i = y - radius; i < y + radius; i++) 
+	{
+		for (int j = x; (j - x) * (j - x) + (i - y) * (i - y) <= radius * radius; j--)
 		{
-			float4 e = buff[_x + _y * width];
-			energy_x += e.x;
-			energy_y += e.y;
-			energy_z += e.z;
-			sample_count++;
+			if (i >= 0 && i < SCRHEIGHT && j >=0 && j < SCRWIDTH)
+			{
+				float4 e = buff[j + i * width];
+				energy_x += e.x;
+				energy_y += e.y;
+				energy_z += e.z;
+				count++;
+			}
+		}
+		for (int j = x + 1; (j - x) * (j - x) + (i - y) * (i - y) <= radius * radius; j++) 
+		{
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+			{
+				float4 e = buff[j + i * width];
+				energy_x += e.x;
+				energy_y += e.y;
+				energy_z += e.z;
+				count++;
+			}
 		}
 	}
-	sample_count = max(1, sample_count);
+
 	float3 energy = make_float3(
-		energy_x / sample_count,
-		energy_y / sample_count,
-		energy_z / sample_count
+		energy_x / count,
+		energy_y / count,
+		energy_z / count
 	);
 	return energy;
 }
@@ -206,7 +240,7 @@ void MSE::Tick(float deltaTime)
 
 	float3 energy = energyAroundCoord(cursor_x, cursor_y, sample_radius, imagebuffer[imageindex]->buffer, imagebuffer[imageindex]->width, imagebuffer[imageindex]->height);
 	printf("                                                            \r");
-	printf("image_i:%d r:%d energy:%.3f cursor:%d %d:%.4f %.4f %.4f\r", imageindex, sample_radius, currentImageEnergy, cursor_x, cursor_y, energy.x, energy.y, energy.z);
+	printf("image_i:%d d:%d %d energy:%.3f cursor:%d %d:%.4f %.4f %.4f\r", imageindex, sample_radius * 2 + 1, __count, currentImageEnergy, cursor_x, cursor_y, energy.x, energy.y, energy.z);
 	//printf("image_i:%d energy:%.3f cursor:%d %d\r", imageindex, currentImageEnergy, cursor_x, cursor_y);
 }
 

@@ -150,6 +150,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="cl\kernels.cl" />
+    <None Include="cl\reservoir.cl" />
     <None Include="cl\ris.cl" />
     <None Include="README.md" />
     <None Include="template\LICENSE" />

@@ -7,6 +7,10 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
+const int numberOfInitialSamples = 1000;
+const int numberOfCandidates = 32;
+const int numberOfTemporalFrames = NUMBEROFTEMPORALFRAMES;
+
 Game* CreateGame() { return new MyGame(); }
 
 //float3 _D(0, 0, 1), _O(107.85, 60.81, -48.86);
@@ -15,6 +19,7 @@ float3 D = _D, O = _O;
 
 static bool shouldDumpBuffer = false;
 static bool takeScreenshot = false;
+static bool useSpatialResampling = USESPATIAL;
 // -----------------------------------------------------------
 // Initialize the application
 // -----------------------------------------------------------
@@ -36,8 +41,32 @@ void MyGame::Init()
 	}
 
 	GetWorld()->GetRenderParams().accumulate = true;
+	GetWorld()->GetRenderParams().spatial = useSpatialResampling;
 
 	SetupLightBuffers();
+	SetupReservoirBuffers();
+}
+
+void MyGame::SetupReservoirBuffers()
+{
+	World& world = *GetWorld();
+
+	Buffer* reservoirbuffer = world.GetReservoirsBuffer();
+	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT * numberOfTemporalFrames;
+	if (!reservoirbuffer)
+	{
+		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		world.SetReservoirBuffer(reservoirbuffer);
+	}
+
+	Buffer* initialSamplingBuffer = world.GetInitialSamplingBuffer();
+	if (!initialSamplingBuffer)
+	{
+		initialSamplingBuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfInitialSamples, 0, new Reservoir[numberOfInitialSamples]);
+		world.GetRenderParams().numberOfInitialSamples = numberOfInitialSamples;
+		world.SetInitialSamplingBuffer(initialSamplingBuffer);
+	}
+
 }
 
 void MyGame::SetupLightBuffers()
@@ -101,9 +130,10 @@ void MyGame::SetupLightBuffers()
 	world.SetLightsBuffer(lightbuffer);
 }
 
-SHORT lastEstate = 0;
-SHORT lastQstate = 0;
-SHORT lastSpaceState = 0;
+KeyHandler qHandler = { 0, 'Q' };
+KeyHandler eHandler = { 0, 'E' };
+KeyHandler spaceHandler = { 0, VK_SPACE };
+KeyHandler cHandler = {0, 'C'};
 void MyGame::HandleControls(float deltaTime)
 {
 	if (!isFocused) return; // ignore controls if window doesnt have focus
@@ -112,11 +142,8 @@ void MyGame::HandleControls(float deltaTime)
 	float speed = deltaTime * 0.03f;
 	bool dirty = false;
 
-	SHORT qState = GetAsyncKeyState('Q');
-	SHORT eState = GetAsyncKeyState('E');
-	SHORT spaceState = GetAsyncKeyState(VK_SPACE);
-	if (qState == 0 && qState != lastEstate) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
-	if (eState == 0 && eState != lastQstate) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
+	if (qHandler.IsTyped()) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
+	if (eHandler.IsTyped()) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
 
 	if (GetAsyncKeyState('W')) { O += speed * D; dirty = true; }
 	else if (GetAsyncKeyState('S')) { O -= speed * D; dirty = true; }
@@ -134,24 +161,30 @@ void MyGame::HandleControls(float deltaTime)
 	if (GetAsyncKeyState('Z')) { D = _D; O = _O; dirty = true; }
 
 	if (GetAsyncKeyState('L')) { PrintStats(); };
+	if (cHandler.IsTyped())
+	{
+		dirty = true;
+		useSpatialResampling = !useSpatialResampling;
+		GetWorld()->GetRenderParams().spatial = useSpatialResampling;
+	}
 	
 	LookAt(O, O + D);
 
-	if (spaceState == 0 && spaceState != lastSpaceState)
+	if (spaceHandler.IsTyped())
 	{
 		GetWorld()->GetRenderParams().accumulate = !GetWorld()->GetRenderParams().accumulate;
 		dirty = true;
 	}
-	if (GetAsyncKeyState('X')) dirty = true;
+	if (GetAsyncKeyState('X'))
+	{
+		dirty = true;
+		GetWorld()->GetRenderParams().restirframecount = 0;
+	}
 	if (dirty)
 	{
 		GetWorld()->GetRenderParams().framecount = 0;
 		GetWorld()->GetRenderParams().frame = 0;
 	}
-
-	lastEstate = qState;
-	lastQstate = eState;
-	lastSpaceState = spaceState;
 }
 
 void MyGame::PreRender()
@@ -171,54 +204,18 @@ void MyGame::PrintStats()
 	printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\n", D.x, D.y, D.z, O.x, O.y, O.z, fov);
 }
 
-const int numberOfInitialSamples = 1000;
-const int numberOfCandidates = 32;
-
 void MyGame::SubSampleLightSamples()
 {
 	World& world = *GetWorld();
-
-	Buffer* reservoirbuffer = world.GetReservoirsBuffer();
-	if (!reservoirbuffer)
-	{
-		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * SCRWIDTH * SCRHEIGHT, 0, new Reservoir[SCRWIDTH * SCRHEIGHT]);
-		reservoirbuffer->CopyToDevice();
-		world.SetReservoirBuffer(reservoirbuffer);
-	}
-
-	Buffer* initialSamplingBuffer = world.GetInitialSamplingBuffer();
-	if (!initialSamplingBuffer)
-	{
-		initialSamplingBuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfInitialSamples, 0, new Reservoir[numberOfInitialSamples]);
-		world.GetRenderParams().numberOfInitialSamples = numberOfInitialSamples;
-		world.SetInitialSamplingBuffer(initialSamplingBuffer);
-	}
-
 	Light* lightsData = (Light*)world.GetLightsBuffer()->hostBuffer;
 	if (!world.GetLightsBuffer() || !world.GetLightsBuffer()->hostBuffer)
 	{
 		printf("Light buffer not set up yet. No initial sampling\n"); 
 		return;
 	}
-	Reservoir* initialSamplings = (Reservoir*)initialSamplingBuffer->hostBuffer;
-	const int numberOfLights = world.GetRenderParams().numberOfLights;
-	for (int i = 0; i < numberOfInitialSamples; i++)
-	{
-		Reservoir& res = initialSamplings[i];
-		res.light_index = 0;
-		res.streamLength = 0;
-		res.sumOfWeights = 0;
-		res.type = 0;
 
-		for (int j = 0; j < numberOfCandidates; j++)
-		{
-			int random_index = RandomFloat() * (numberOfLights - 1);
-			Light& randomlight = lightsData[random_index];
-			UpdateReservoirL(res, randomlight, RandomFloat());
-		}
-	}
-
-	initialSamplingBuffer->CopyToDevice();
+	Reservoir* initialSamplings = (Reservoir*)world.GetInitialSamplingBuffer()->hostBuffer;
+	// No initial sampling yet
 }
 
 // -----------------------------------------------------------
@@ -232,8 +229,8 @@ void MyGame::Tick(float deltaTime)
 	//auto buf = GetWorld()->GetFrameBuffer()->GetHostPtr();
 
 	// clear line
-	printf("                                                            \r");
-	printf("Frame: %d acc: %d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, O.x, O.y, O.z);
+	//printf("                                                            \r");
+	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
 	DumpScreenBuffer();
 }

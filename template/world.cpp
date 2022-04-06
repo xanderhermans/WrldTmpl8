@@ -39,6 +39,9 @@ float3 DiffuseReflectionCosWeighted( const float r0, const float r1, const float
 float SphericalTheta( const float3& v ) { return acosf( clamp( v.z, -1.f, 1.f ) ); }
 float SphericalPhi( const float3& v ) { const float p = atan2f( v.y, v.x ); return (p < 0) ? (p + 2 * PI) : p; }
 
+static Test test;
+static Buffer* testBuffer;
+
 // World Constructor
 // ----------------------------------------------------------------------------
 World::World( const uint targetID )
@@ -87,12 +90,15 @@ World::World( const uint targetID )
 	
 	params.frame = 0;
 	params.framecount = 0;
+	params.restirframecount = 0;
 	// initialize kernels
 	paramBuffer = new Buffer( sizeof( RenderParams ) / 4, Buffer::DEFAULT | Buffer::READONLY, &params );
 	historyTAA[0] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	historyTAA[1] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	tmpFrame = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	accumulator = new Buffer(4 * SCRWIDTH * SCRHEIGHT);
+	testBuffer = new Buffer(sizeof(Test) / 4, 1, &test);
+	primaryHitBuffer = new Buffer(sizeof(CLRay) / 4 * SCRWIDTH * SCRHEIGHT);
 
 	char* kernelfile = "cl/kernels.cl";
 #if ACCUMULATOR == 1
@@ -109,6 +115,7 @@ World::World( const uint targetID )
 	currentRenderer = rendererNoTAA;
 #endif
 	accumulatorFinalizer = new Kernel(kernelfile, "accumulatorFinalizer");
+	albedoRender = new Kernel(kernelfile, "renderAlbedo");
 	finalizer = new Kernel(kernelfile, "finalize" );
 	unsharpen = new Kernel(kernelfile, "unsharpen" );
 	committer = new Kernel(kernelfile, "commit" );
@@ -1539,6 +1546,7 @@ void World::Render()
 		#elif TAA == 1
 			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 		#elif RIS == 1
+			currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 		#else
 			currentRenderer->SetArgument(renderer_arg_i++, screen);
@@ -1568,13 +1576,29 @@ void World::Render()
 		}
 
 	#if RIS == 1
-		cl_event* ev;
-		perPixelLightSampling->SetArgument(0, paramBuffer);
-		perPixelLightSampling->SetArgument(1, lightsBuffer);
-		perPixelLightSampling->SetArgument(2, reservoirBuffer);
-		perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, ev);
+		albedoRender->SetArgument(0, primaryHitBuffer);
+		albedoRender->SetArgument(1, paramBuffer);
+		albedoRender->SetArgument(2, &gridMap);
+		albedoRender->SetArgument(3, &uberGrid);
+		albedoRender->SetArgument(4, brickBuffer);
+		albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), ev);
+		test.frame = 0;
+		test.prevframe = 0;
+		testBuffer->CopyToDevice();
+
+		perPixelLightSampling->SetArgument(0, testBuffer);
+		perPixelLightSampling->SetArgument(1, primaryHitBuffer);
+		perPixelLightSampling->SetArgument(2, paramBuffer);
+		perPixelLightSampling->SetArgument(3, lightsBuffer);
+		perPixelLightSampling->SetArgument(4, reservoirBuffer);
+		perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+
+		testBuffer->CopyFromDevice();
+		//printf("                                                            \r");
+		printf("a:%f b%f\n", test.frame, test.prevframe);
+
+		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 		accumulatorFinalizer->SetArgument(0, screen);
 		accumulatorFinalizer->SetArgument(1, tmpFrame);
 		accumulatorFinalizer->SetArgument(2, accumulator);
@@ -1605,6 +1629,7 @@ void World::Render()
 		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
 
+		params.restirframecount = params.restirframecount + 1;
 		params.frame = params.frame + 1 & 255;
 		if (params.accumulate) params.framecount = params.framecount + 1;
 		else params.framecount = 0;

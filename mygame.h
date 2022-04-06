@@ -8,6 +8,7 @@ class MyGame : public Game
 	void PrintStats();
 public:
 	void SetupLightBuffers();
+	void SetupReservoirBuffers();
 	void SubSampleLightSamples();
 	// game flow methods
 	void Init();

@@ -1287,6 +1287,20 @@ public:
 #include "worldapi.h"
 #include "world_to_obj.h"
 
+struct KeyHandler
+{
+	SHORT last = 0;
+	char key = 0;
+
+	bool IsTyped()
+	{
+		SHORT state = GetAsyncKeyState(key);
+		SHORT _last = last;
+		last = state;
+		return state == 0 && _last != state;
+	}
+};
+
 // game
 class Game
 {

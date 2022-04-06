@@ -258,16 +258,6 @@ float3 VoxelNormal( const uint side, const float3 D )
 	if (side == 2) return (float3)(0, 0, D.z > 0 ? -1 : 1 );
 }
 
-void UpdateReservoir(struct Reservoir* _this, const struct Light* candidate, float r0)
-{
-	_this->sumOfWeights += candidate->weight;
-	_this->streamLength += 1;
-	if (r0 < candidate->weight / _this->sumOfWeights)
-	{
-		_this->light_index = candidate->index;
-	}
-}
-
 int getRandomLightIndex(const int length, uint* seed)
 {
 	return RandomFloat(seed) * (length - 1);
@@ -295,4 +285,8 @@ uint Get(const uint x, const uint y, const uint z,
 	// calculate the position of the voxel inside the brick
 	const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
 	return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
+}
+
+int modulo(int x, int N) {
+	return (x % N + N) % N;
 }

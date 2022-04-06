@@ -43,6 +43,12 @@
 // RIS
 #define RIS			1
 #define NUMBEROFLIGHTCANDIDATES 32
+#define NUMBEROFTEMPORALFRAMES 20
+#define SPATIALRADIUS 3
+#define SPATIALTAPS 5
+#define USESPATIAL false
+
+#define SPATIALDEBUG 0
 
 // Accumulator
 #define ACCUMULATOR 0
@@ -79,12 +85,18 @@
 #define LIGHTRED	0xF55
 #endif
 
+struct Test
+{
+	float frame;
+	float prevframe;
+};
+
 // renderer
 struct RenderParams
 {
 	float2 oneOverRes;
 	float3 E, p0, p1, p2;
-	uint R0, frame, framecount;
+	uint R0, frame, framecount, restirframecount;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
 	float skyLightScale, dummy1, dummy2, dummy3;
@@ -92,9 +104,24 @@ struct RenderParams
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
-	bool accumulate;
+	bool accumulate, spatial, temporal;
 	uint numberOfLights;
 	uint numberOfInitialSamples;
+};
+
+struct CLRay
+{
+	uint voxel_position;
+	uint voxel; // potentially unnecessary if position can be used to retrieve.
+	float distance;
+	uint side;
+	uint seed;
+	float3 ray_direction;
+};
+
+struct ShadowRayResult
+{
+	float3 L;
 };
 
 struct Light 
@@ -107,7 +134,7 @@ struct Light
 
 struct Reservoir 
 { 
-	uint type; 
+	uint visible; 
 	float sumOfWeights; 
 	uint streamLength; 
 	uint light_index; 
