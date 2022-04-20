@@ -187,12 +187,12 @@ public:
 	Buffer* GetFrameBuffer() { return tmpFrame; }
 	Buffer* GetAccumulatorBuffer() { return accumulator; }
 	Buffer* GetLightsBuffer() { return lightsBuffer; }
-	//Light* GetLights() { return lights; }
+	Buffer* GetDebugBuffer() { return debugBuffer; }
 	Buffer* GetReservoirsBuffer() { return reservoirBuffer; }
-	Buffer* GetInitialSamplingBuffer() { return initialSamplingBuffer; }
+	Buffer* GetPrevReservoirsBuffer() { return prevReservoirBuffer; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
+	void SetPrevReservoirBuffer(Buffer* buffer) { prevReservoirBuffer = buffer; }
 	void SetReservoirBuffer(Buffer* buffer) { reservoirBuffer = buffer; }
-	void SetInitialSamplingBuffer(Buffer* buffer) { initialSamplingBuffer = buffer; }
 	void Commit();
 	void Render();
 	float GetRenderTime() { return renderTime; }
@@ -429,6 +429,7 @@ private:
 	Buffer* screen = 0;					// OpenCL buffer that encapsulates the target OpenGL texture
 	uint targetTextureID = 0;			// OpenGL render target
 	int prevFrameIdx = 0;				// index of the previous frame buffer that will be used for TAA
+	Buffer* debugBuffer = 0;
 	Buffer* paramBuffer = 0;			// OpenCL buffer that stores renderer parameters
 	Buffer* historyTAA[2] = { 0 };			// OpenCL buffers for history data (previous frame)
 	Buffer* tmpFrame = 0;				// OpenCL buffer to store rendered frame in linear color space
@@ -437,14 +438,13 @@ private:
 	Buffer* blueNoise = 0;				// blue noise data
 	Buffer* lightsBuffer = 0;
 	Buffer* reservoirBuffer = 0;
-	Buffer* initialSamplingBuffer = 0;
+	Buffer* prevReservoirBuffer = 0;
 	Buffer* primaryHitBuffer = 0;
-	//Light* lights = 0;
-	bool syncLights = false;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
 	Kernel* albedoRender;
 	Kernel* perPixelLightSampling;
+	Kernel* spatialResampling;
 	Kernel* currentRenderer;
 	Kernel* committer;					// render kernel and commit kernel
 	Kernel* finalizer, * unsharpen;		// TAA finalization kernels

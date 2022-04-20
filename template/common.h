@@ -42,9 +42,7 @@
 
 // RIS
 #define RIS			1
-#define NUMBEROFLIGHTCANDIDATES 32
-#define NUMBEROFTEMPORALFRAMES 20
-#define SPATIALRADIUS 3
+#define SPATIALRADIUS 30
 #define SPATIALTAPS 5
 #define USESPATIAL false
 
@@ -52,6 +50,7 @@
 
 // Accumulator
 #define ACCUMULATOR 0
+#define STRATIFIEDACCUMULATING 1
 
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
@@ -85,10 +84,10 @@
 #define LIGHTRED	0xF55
 #endif
 
-struct Test
+// debugging
+struct DebugInfo
 {
-	float frame;
-	float prevframe;
+	float4 f1;
 };
 
 // renderer
@@ -96,7 +95,7 @@ struct RenderParams
 {
 	float2 oneOverRes;
 	float3 E, p0, p1, p2;
-	uint R0, frame, framecount, restirframecount;
+	uint R0, frame, framecount;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
 	float skyLightScale, dummy1, dummy2, dummy3;
@@ -106,38 +105,29 @@ struct RenderParams
 	float4 prevP0, prevP1, prevP2, prevP3;
 	bool accumulate, spatial, temporal;
 	uint numberOfLights;
-	uint numberOfInitialSamples;
 };
 
 struct CLRay
 {
-	uint voxel_position;
-	uint voxel; // potentially unnecessary if position can be used to retrieve.
+	uint voxelValue; // potentially unnecessary if position can be used to retrieve.
 	float distance;
 	uint side;
 	uint seed;
-	float3 ray_direction;
-};
-
-struct ShadowRayResult
-{
-	float3 L;
+	float3 rayDirection;
 };
 
 struct Light 
 { 
-	uint index; 
-	uint position; 
-	uint voxel; 
-	float weight; 
+	uint index;
+	uint voxel;
 };
 
 struct Reservoir 
-{ 
-	uint visible; 
+{
 	float sumOfWeights; 
 	uint streamLength; 
-	uint light_index; 
+	uint lightIndex;
+	float adjustedWeight;
 };
 
 // lighting for 6 normals for sky15.hdr

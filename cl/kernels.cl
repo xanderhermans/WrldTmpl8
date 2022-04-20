@@ -142,7 +142,7 @@ float4 render_di( const float2 screenPos, __constant struct RenderParams* params
 
 	const float INV16 = 1.0f / 16.0f;
 
-#if 1 // stratified
+#if STRATIFIEDACCUMULATING // stratified
 	float r0 = (stratum_x + RandomFloat(&seed)) * INV16;
 	float r1 = (stratum_y + RandomFloat(&seed)) * INV16;
 #else

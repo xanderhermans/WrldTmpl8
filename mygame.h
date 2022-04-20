@@ -9,7 +9,6 @@ class MyGame : public Game
 public:
 	void SetupLightBuffers();
 	void SetupReservoirBuffers();
-	void SubSampleLightSamples();
 	// game flow methods
 	void Init();
 	void Tick( float deltaTime );

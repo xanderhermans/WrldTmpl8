@@ -39,8 +39,7 @@ float3 DiffuseReflectionCosWeighted( const float r0, const float r1, const float
 float SphericalTheta( const float3& v ) { return acosf( clamp( v.z, -1.f, 1.f ) ); }
 float SphericalPhi( const float3& v ) { const float p = atan2f( v.y, v.x ); return (p < 0) ? (p + 2 * PI) : p; }
 
-static Test test;
-static Buffer* testBuffer;
+static DebugInfo debugInfo;
 
 // World Constructor
 // ----------------------------------------------------------------------------
@@ -90,14 +89,13 @@ World::World( const uint targetID )
 	
 	params.frame = 0;
 	params.framecount = 0;
-	params.restirframecount = 0;
 	// initialize kernels
 	paramBuffer = new Buffer( sizeof( RenderParams ) / 4, Buffer::DEFAULT | Buffer::READONLY, &params );
+	debugBuffer = new Buffer(sizeof(DebugInfo) / 4, 0, &debugInfo);
 	historyTAA[0] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	historyTAA[1] = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	tmpFrame = new Buffer( 4 * SCRWIDTH * SCRHEIGHT );
 	accumulator = new Buffer(4 * SCRWIDTH * SCRHEIGHT);
-	testBuffer = new Buffer(sizeof(Test) / 4, 1, &test);
 	primaryHitBuffer = new Buffer(sizeof(CLRay) / 4 * SCRWIDTH * SCRHEIGHT);
 
 	char* kernelfile = "cl/kernels.cl";
@@ -121,7 +119,8 @@ World::World( const uint targetID )
 	committer = new Kernel(kernelfile, "commit" );
 	batchTracer = new Kernel(kernelfile, "traceBatch" );
 	batchToVoidTracer = new Kernel(kernelfile, "traceBatchToVoid" );
-	perPixelLightSampling = new Kernel(kernelfile, "initiate_per_pixel_samples");
+	perPixelLightSampling = new Kernel(kernelfile, "perPixelInitialSampling");
+	spatialResampling = new Kernel(kernelfile, "perPixelSpatialResampling");
 #if MORTONBRICKS == 1
 	encodeBricks = new Kernel(kernelfile, "encodeBricks" );
 #endif
@@ -1546,6 +1545,7 @@ void World::Render()
 		#elif TAA == 1
 			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 		#elif RIS == 1
+			currentRenderer->SetArgument(renderer_arg_i++, debugBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 		#else
@@ -1557,7 +1557,7 @@ void World::Render()
 #if RIS == 1
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
 			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffer);
-			currentRenderer->SetArgument(renderer_arg_i++, initialSamplingBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, prevReservoirBuffer);
 #endif
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap );
 			currentRenderer->SetArgument(renderer_arg_i++, sky );
@@ -1576,33 +1576,46 @@ void World::Render()
 		}
 
 	#if RIS == 1
-		albedoRender->SetArgument(0, primaryHitBuffer);
-		albedoRender->SetArgument(1, paramBuffer);
-		albedoRender->SetArgument(2, &gridMap);
-		albedoRender->SetArgument(3, &uberGrid);
-		albedoRender->SetArgument(4, brickBuffer);
+		int albedoargi = 0;
+		albedoRender->SetArgument(albedoargi++, debugBuffer);
+		albedoRender->SetArgument(albedoargi++, primaryHitBuffer);
+		albedoRender->SetArgument(albedoargi++, paramBuffer);
+		albedoRender->SetArgument(albedoargi++, &gridMap);
+		albedoRender->SetArgument(albedoargi++, &uberGrid);
+		albedoRender->SetArgument(albedoargi++, brickBuffer);
 		albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		test.frame = 0;
-		test.prevframe = 0;
-		testBuffer->CopyToDevice();
-
-		perPixelLightSampling->SetArgument(0, testBuffer);
-		perPixelLightSampling->SetArgument(1, primaryHitBuffer);
-		perPixelLightSampling->SetArgument(2, paramBuffer);
-		perPixelLightSampling->SetArgument(3, lightsBuffer);
-		perPixelLightSampling->SetArgument(4, reservoirBuffer);
+		int perpixellighti = 0;
+		perPixelLightSampling->SetArgument(perpixellighti++, debugBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, prevReservoirBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
+		perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
+		perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
 		perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		testBuffer->CopyFromDevice();
-		//printf("                                                            \r");
-		printf("a:%f b%f\n", test.frame, test.prevframe);
-
+		int spatialRisi = 0;
+		spatialResampling->SetArgument(spatialRisi++, debugBuffer);
+		spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer);
+		spatialResampling->SetArgument(spatialRisi++, paramBuffer);
+		spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffer);
+		spatialResampling->SetArgument(spatialRisi++, prevReservoirBuffer);
+		spatialResampling->SetArgument(spatialRisi++, &gridMap);
+		spatialResampling->SetArgument(spatialRisi++, &uberGrid);
+		spatialResampling->SetArgument(spatialRisi++, brickBuffer);
+		spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+		
 		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
-		accumulatorFinalizer->SetArgument(0, screen);
-		accumulatorFinalizer->SetArgument(1, tmpFrame);
-		accumulatorFinalizer->SetArgument(2, accumulator);
-		accumulatorFinalizer->SetArgument(3, paramBuffer);
+
+		int finalizerargi = 0;
+		accumulatorFinalizer->SetArgument(finalizerargi++, screen);
+		accumulatorFinalizer->SetArgument(finalizerargi++, tmpFrame);
+		accumulatorFinalizer->SetArgument(finalizerargi++, accumulator);
+		accumulatorFinalizer->SetArgument(finalizerargi++, paramBuffer);
 		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#elif ACCUMULATOR == 1
 		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
@@ -1629,7 +1642,6 @@ void World::Render()
 		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
 
-		params.restirframecount = params.restirframecount + 1;
 		params.frame = params.frame + 1 & 255;
 		if (params.accumulate) params.framecount = params.framecount + 1;
 		else params.framecount = 0;

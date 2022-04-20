@@ -1136,26 +1136,6 @@ public:
 // In your own .cpp files just add #include "precomp.h".
 // #include "my_include.h"
 
-inline void UpdateReservoir(Reservoir& _this, Reservoir res, float r)
-{
-	_this.sumOfWeights += res.sumOfWeights;
-	_this.streamLength += res.streamLength;
-	if (r < res.sumOfWeights / _this.sumOfWeights)
-	{
-		_this.light_index = res.light_index;
-	}
-}
-
-inline void UpdateReservoirL(Reservoir& _this, Light light, float r)
-{
-	_this.sumOfWeights += light.weight;
-	_this.streamLength += 1;
-	if (r < light.weight / _this.sumOfWeights)
-	{
-		_this.light_index = light.index;
-	}
-}
-
 // structures for inline batch tracing
 struct Ray
 {

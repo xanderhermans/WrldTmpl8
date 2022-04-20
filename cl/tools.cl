@@ -280,7 +280,7 @@ uint Get(const uint x, const uint y, const uint z,
 	const uint by = (y / BRICKDIM) & (GRIDHEIGHT - 1);
 	const uint bz = (z / BRICKDIM) & (GRIDDEPTH - 1);
 	//const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
-	const uint g = read_imageui(grid, (int4)(bx, by, bz, 0)).x;
+	const uint g = read_imageui(grid, (int4)(bx, bz, by, 0)).x;
 	if ((g & 1) == 0 /* this is currently a 'solid' grid cell */) return g >> 1;
 	// calculate the position of the voxel inside the brick
 	const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);

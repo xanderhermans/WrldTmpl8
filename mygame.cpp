@@ -7,10 +7,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
 
-const int numberOfInitialSamples = 1000;
-const int numberOfCandidates = 32;
-const int numberOfTemporalFrames = NUMBEROFTEMPORALFRAMES;
-
 Game* CreateGame() { return new MyGame(); }
 
 //float3 _D(0, 0, 1), _O(107.85, 60.81, -48.86);
@@ -52,21 +48,19 @@ void MyGame::SetupReservoirBuffers()
 	World& world = *GetWorld();
 
 	Buffer* reservoirbuffer = world.GetReservoirsBuffer();
-	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT * numberOfTemporalFrames;
+	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
 	if (!reservoirbuffer)
 	{
 		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
 		world.SetReservoirBuffer(reservoirbuffer);
 	}
 
-	Buffer* initialSamplingBuffer = world.GetInitialSamplingBuffer();
-	if (!initialSamplingBuffer)
+	Buffer* prevReservoirbuffer = world.GetPrevReservoirsBuffer();
+	if (!prevReservoirbuffer)
 	{
-		initialSamplingBuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfInitialSamples, 0, new Reservoir[numberOfInitialSamples]);
-		world.GetRenderParams().numberOfInitialSamples = numberOfInitialSamples;
-		world.SetInitialSamplingBuffer(initialSamplingBuffer);
+		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
+		world.SetPrevReservoirBuffer(prevReservoirbuffer);
 	}
-
 }
 
 void MyGame::SetupLightBuffers()
@@ -90,9 +84,8 @@ void MyGame::SetupLightBuffers()
 				if (isEmitter)
 				{
 					Light light;
-					light.position = x + z * sizex + y * sizex * sizez;
+					light.index = x + z * sizex + y * sizex * sizez;
 					light.voxel = c;
-					light.weight = 1;
 					lights.push_back(light);
 				}
 			}
@@ -117,14 +110,6 @@ void MyGame::SetupLightBuffers()
 
 	printf("Number of emitting voxels: %d\n", numberOfLights);
 
-	Light* lightsData = (Light*)lightbuffer->hostBuffer;
-	for (int i = 0; i < lights.size(); i++)
-	{
-		auto light = lights[i];
-		light.weight /= (float)lights.size();
-		lightsData[i] = light;
-	}
-
 	world.GetRenderParams().numberOfLights = numberOfLights;
 	lightbuffer->CopyToDevice();
 	world.SetLightsBuffer(lightbuffer);
@@ -133,7 +118,7 @@ void MyGame::SetupLightBuffers()
 KeyHandler qHandler = { 0, 'Q' };
 KeyHandler eHandler = { 0, 'E' };
 KeyHandler spaceHandler = { 0, VK_SPACE };
-KeyHandler cHandler = {0, 'C'};
+KeyHandler cHandler = { 0, 'C' };
 void MyGame::HandleControls(float deltaTime)
 {
 	if (!isFocused) return; // ignore controls if window doesnt have focus
@@ -157,7 +142,7 @@ void MyGame::HandleControls(float deltaTime)
 	else if (GetAsyncKeyState(VK_RIGHT)) { D = normalize(D + right * 0.025f * speed); dirty = true; }
 	if (GetAsyncKeyState(VK_UP)) { D = normalize(D - up * 0.025f * speed); dirty = true; }
 	else if (GetAsyncKeyState(VK_DOWN)) { D = normalize(D + up * 0.025f * speed); dirty = true; }
-	
+
 	if (GetAsyncKeyState('Z')) { D = _D; O = _O; dirty = true; }
 
 	if (GetAsyncKeyState('L')) { PrintStats(); };
@@ -167,7 +152,7 @@ void MyGame::HandleControls(float deltaTime)
 		useSpatialResampling = !useSpatialResampling;
 		GetWorld()->GetRenderParams().spatial = useSpatialResampling;
 	}
-	
+
 	LookAt(O, O + D);
 
 	if (spaceHandler.IsTyped())
@@ -178,7 +163,6 @@ void MyGame::HandleControls(float deltaTime)
 	if (GetAsyncKeyState('X'))
 	{
 		dirty = true;
-		GetWorld()->GetRenderParams().restirframecount = 0;
 	}
 	if (dirty)
 	{
@@ -189,7 +173,6 @@ void MyGame::HandleControls(float deltaTime)
 
 void MyGame::PreRender()
 {
-	SubSampleLightSamples();
 }
 
 void MyGame::PrintStats()
@@ -202,20 +185,6 @@ void MyGame::PrintStats()
 
 	printf("-cam-pos %.2f %.2f %.2f -cam-pitch %.2f -cam-yaw %.2f -cam-roll %.2f fov %.4f\n", -O.x, O.y, O.z, angles.x, angles.y, angles.z, fov);
 	printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\n", D.x, D.y, D.z, O.x, O.y, O.z, fov);
-}
-
-void MyGame::SubSampleLightSamples()
-{
-	World& world = *GetWorld();
-	Light* lightsData = (Light*)world.GetLightsBuffer()->hostBuffer;
-	if (!world.GetLightsBuffer() || !world.GetLightsBuffer()->hostBuffer)
-	{
-		printf("Light buffer not set up yet. No initial sampling\n"); 
-		return;
-	}
-
-	Reservoir* initialSamplings = (Reservoir*)world.GetInitialSamplingBuffer()->hostBuffer;
-	// No initial sampling yet
 }
 
 // -----------------------------------------------------------
@@ -243,7 +212,7 @@ union convertor {
 void saveScreenBuffer(const std::filesystem::path& filepath, uint32_t width, uint32_t height, const float4* data);
 void MyGame::DumpScreenBuffer()
 {
-#if 1 //stratified
+#if STRATIFIEDACCUMULATING && ACCUMULATOR //stratified
 	if (GetWorld()->GetRenderParams().framecount % 256 != 0)
 	{
 		return;
