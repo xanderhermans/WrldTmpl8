@@ -47,7 +47,6 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 
 	struct Reservoir res = {0.0, 0, 0, 0.0};
 	
-	//float pphat = 0;
 	for (int i = 0; i < numberOfCandidates; i++)
 	{
 		uint lightIndex;
@@ -56,20 +55,12 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 
 		float pHat = evaluatePHat(lights, lightIndex, N, brdf, shadingPoint);
 		UpdateReservoir(&res, pHat / p, lightIndex, RandomFloat(seedptr));
-
-		//if (i == 10) pphat = pHat;
 	}
 
 	float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
 	AdjustWeight(&res, pHat);
 
 	reservoirs[x + y * SCRWIDTH] = res;
-
-	if (x == 500 && y == 500)
-	{
-		debugInfo->res = res;
-		//debugInfo->phat = pphat;
-	}
 }
 
 // spatial resampling
@@ -147,7 +138,12 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		uint side2;
 		float dist2 = 0;
 		const uint voxel2 = TraceRay((float4)(primaryHitPoint, 0) + 0.1f * (float4)(N, 0), (float4)(L, 1.0), &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
-		if (distance(length(R), dist2) < 0.8)
+		uint3 hitVoxelCoords = GridCoordinatesFromHit(side2, L, dist2, primaryHitPoint);
+		
+		// if we hit the emitter we know nothing occluded it
+		if (hitVoxelCoords.x == emitterVoxelCoords.x 
+			&& hitVoxelCoords.y == emitterVoxelCoords.y
+			&& hitVoxelCoords.z == emitterVoxelCoords.z)
 		{
 			const float NdotL = max(dot(N, L), 0.0);
 

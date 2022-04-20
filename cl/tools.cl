@@ -293,3 +293,11 @@ uint Get(const uint x, const uint y, const uint z,
 int modulo(int x, int N) {
 	return (x % N + N) % N;
 }
+
+uint3 GridCoordinatesFromHit(const int side, const float3 D, const float dist, const float3 O)
+{
+	const float3 N = VoxelNormal(side, D);
+	const float3 hitPoint = D * dist + O;
+	const float3 coordInsideVoxel = hitPoint - N * 0.1;
+	return convert_uint3(coordInsideVoxel);
+}
