@@ -5,13 +5,13 @@ void generateLightCandidate(const uint numberOfLights, float* probability, uint*
 }
 
 float evaluatePHat(
-	__global struct Light* lights, const uint lightIndex, const float3 N, 
-	const float3 brdf, const float3 shadingPoint)
+	__global struct Light* lights, uint lightIndex, float3 N, 
+	float3 brdf, float3 shadingPoint)
 {
 	struct Light* light = &lights[lightIndex];
-	const uint3 emitterVoxelCoords = indexToCoordinates(light->index);
 	// take middle of voxel
-	const float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
+	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
+	float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
 
 	const uint emitterVoxel = light->voxel;
 	const float3 lightIntensity = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel);
@@ -101,14 +101,15 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	__global const unsigned char* uberGrid
 )
 {
+	int x = screenPos.x, y = screenPos.y;
 	// trace primary ray
-	const float dist = hit->distance;
-	const float3 D = hit->rayDirection;
-	const uint side = hit->side;
-	const float3 N = VoxelNormal(side, D);
-	const int x = screenPos.x, y = screenPos.y;
+	float dist = hit->distance;
+	float3 D = hit->rayDirection;
+	uint side = hit->side;
+	float3 N = VoxelNormal(side, D);
 	uint* seedptr = &hit->seed;
-	const uint voxel = hit->voxelValue; 
+	uint voxel = hit->voxelValue; 
+	uint numberOfLights = params->numberOfLights;
 	
 	struct Reservoir* res = &reservoirs[x + y * SCRWIDTH];
 
@@ -134,29 +135,28 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 		const float3 primaryHitPoint = D * dist + params->E;
 
-		uint lightIndex = getRandomIndex(params->numberOfLights, seedptr);
+		uint lightIndex = res->lightIndex;
 		struct Light* light = &lights[lightIndex];
-		uint3 emitterVoxelCoords = indexToCoordinates(light->index);
+		uint3 emitterVoxelCoords = indexToCoordinates(light->position);
 		float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
+
 		uint emitterVoxel = light->voxel;
 
-		const float3 R = emitterVoxelCoordsf - primaryHitPoint;
-		const float3 L = normalize(R);
+		float3 R = emitterVoxelCoordsf - primaryHitPoint;
+		float3 L = normalize(R);
 		uint side2;
 		float dist2 = 0;
 		const uint voxel2 = TraceRay((float4)(primaryHitPoint, 0) + 0.1f * (float4)(N, 0), (float4)(L, 1.0), &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
-		//if (distance(length(R), dist2) < 0.8)
+		if (distance(length(R), dist2) < 0.8)
 		{
 			const float NdotL = max(dot(N, L), 0.0);
 
-			const float3 directContribution = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel) * NdotL / (length(R) * length(R)) * (float)params->numberOfLights;
+			float distancesquared = max(dot(R, R), 10e-6);
+			const float3 directContribution = (ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel) * NdotL / distancesquared) * res->adjustedWeight;
 			const float3 incoming = BRDF1 * directContribution;
 
 			color = incoming;
-			//if (NdotL < 0.0001) color = DEBUGCOLOR;
-			//else color = DEBUGCOLOR2;
 		}
-
 	}
 
 	prevReservoirs[x + y * SCRWIDTH] = *res;
@@ -200,8 +200,8 @@ __kernel void renderRIS(__global struct DebugInfo* debugInfo, __global struct CL
 {
 	// produce primary ray for pixel
 	const int x = get_global_id(0), y = get_global_id(1);
-	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 
+	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	float4 pixel = render_di_ris(debugInfo, hit, (int2)(x, y), params, lights, reservoirs, initialSampling, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
 
 	// store pixel in linear color space, to be processed by finalize kernel for TAA

@@ -263,7 +263,7 @@ float3 VoxelNormal( const uint side, const float3 D )
 
 int getRandomIndex(const int length, uint* seed)
 {
-	return RandomFloat(seed) * (length - 1);
+	return max(0, (int)(RandomFloat(seed) * (length - 1)));
 }
 
 uint3 indexToCoordinates(const uint index)

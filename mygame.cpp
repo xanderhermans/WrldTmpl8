@@ -85,7 +85,7 @@ void MyGame::SetupLightBuffers()
 				if (isEmitter)
 				{
 					Light light;
-					light.index = x + z * sizex + y * sizex * sizez;
+					light.position = x + z * sizex + y * sizex * sizez;
 					light.voxel = c;
 					lights.push_back(light);
 				}
@@ -109,7 +109,15 @@ void MyGame::SetupLightBuffers()
 		lightbuffer->ownData = true;
 	}
 
-	printf("Number of emitting voxels: %d\n", numberOfLights);
+	printf("Number of emitting voxels: %d\n", numberOfLights); 
+	
+	Light* lightsData = (Light*)lightbuffer->hostBuffer;
+	for (int i = 0; i < lights.size(); i++)
+	{
+		auto light = lights[i];
+		lightsData[i] = light;
+	}
+
 
 	world.GetRenderParams().numberOfLights = numberOfLights;
 	lightbuffer->CopyToDevice();
@@ -199,10 +207,12 @@ void MyGame::Tick(float deltaTime)
 	//printf("                                                            \r");
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
-	clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
-	GetWorld()->GetDebugBuffer()->CopyFromDevice();
-	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
-	printf("%f %f %d %d %f\n", debugInfo->phat, debugInfo->res.sumOfWeights, debugInfo->res.streamLength, debugInfo->res.lightIndex, debugInfo->res.adjustedWeight);
+	//clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
+	//GetWorld()->GetDebugBuffer()->CopyFromDevice();
+	//DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
+	//uint lightIndex = (uint)(debugInfo->f1.x);
+	//Light light = (reinterpret_cast<Light*>(GetWorld()->GetLightsBuffer()->hostBuffer))[lightIndex];
+	//printf("f1 %f %f %f %f f2 %f %f %f %f res %f %d %d %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w, debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w, debugInfo->res.sumOfWeights, debugInfo->res.streamLength, debugInfo->res.lightIndex, debugInfo->res.adjustedWeight);
 
 	DumpScreenBuffer();
 }

@@ -114,7 +114,7 @@ struct CLRay
 
 struct Light 
 { 
-	uint index;
+	uint position;
 	uint voxel;
 };
 
@@ -129,7 +129,8 @@ struct Reservoir
 // debugging
 struct DebugInfo
 {
-	float phat;
+	float4 f1;
+	float4 f2;
 	struct Reservoir res;
 };
 
