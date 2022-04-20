@@ -38,6 +38,7 @@ void MyGame::Init()
 
 	GetWorld()->GetRenderParams().accumulate = true;
 	GetWorld()->GetRenderParams().spatial = useSpatialResampling;
+	GetWorld()->GetRenderParams().numberOfCandidates = NUMBEROFCANDIDATES;
 
 	SetupLightBuffers();
 	SetupReservoirBuffers();
@@ -193,13 +194,15 @@ void MyGame::PrintStats()
 void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
-	//clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
-	//GetWorld()->GetFrameBuffer()->CopyFromDevice();
-	//auto buf = GetWorld()->GetFrameBuffer()->GetHostPtr();
 
 	// clear line
 	//printf("                                                            \r");
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
+
+	clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
+	GetWorld()->GetDebugBuffer()->CopyFromDevice();
+	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
+	printf("%f %f %d %d %f\n", debugInfo->phat, debugInfo->res.sumOfWeights, debugInfo->res.streamLength, debugInfo->res.lightIndex, debugInfo->res.adjustedWeight);
 
 	DumpScreenBuffer();
 }

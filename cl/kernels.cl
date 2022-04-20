@@ -300,8 +300,7 @@ __kernel void accumulatorFinalizer(write_only image2d_t outimg, __global float4*
 	float4 frameColor = pixels[x + y * SCRWIDTH];
 	float4 color;
 	float4 prevColorResult = (float4)(0.0, 0.0, 0.0, 0.0);
-	int numFramesAccumulator = params->framecount;
-	//int numFramesAccumulator = 0;
+	int numFramesAccumulator = params->framecount * params->accumulate;
 	if (numFramesAccumulator > 0)
 	{
 		prevColorResult = accumulator[x + y * SCRWIDTH];
@@ -311,6 +310,7 @@ __kernel void accumulatorFinalizer(write_only image2d_t outimg, __global float4*
 	color = (float4)(colorResult.xyz, 1.0f);
 	accumulator[x + y * SCRWIDTH] = color;
 	write_imagef(outimg, (int2)(x, y), (float4)(color.xyz, 1));
+
 	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(color.xyz), 1));
 	//write_imagef(outimg, (int2)(x, y), (float4)(LinearToSRGB(ToneMapFilmic_Hejl2015(color.xyz, 1)), 1));
 }

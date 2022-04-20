@@ -42,6 +42,7 @@
 
 // RIS
 #define RIS			1
+#define NUMBEROFCANDIDATES 32
 #define SPATIALRADIUS 30
 #define SPATIALTAPS 5
 #define USESPATIAL false
@@ -84,12 +85,6 @@
 #define LIGHTRED	0xF55
 #endif
 
-// debugging
-struct DebugInfo
-{
-	float4 f1;
-};
-
 // renderer
 struct RenderParams
 {
@@ -105,6 +100,7 @@ struct RenderParams
 	float4 prevP0, prevP1, prevP2, prevP3;
 	bool accumulate, spatial, temporal;
 	uint numberOfLights;
+	uint numberOfCandidates;
 };
 
 struct CLRay
@@ -128,6 +124,13 @@ struct Reservoir
 	uint streamLength; 
 	uint lightIndex;
 	float adjustedWeight;
+};
+
+// debugging
+struct DebugInfo
+{
+	float phat;
+	struct Reservoir res;
 };
 
 // lighting for 6 normals for sky15.hdr

@@ -1,4 +1,7 @@
-﻿float SphericalTheta( const float3 v )
+﻿#define DEBUGCOLOR (float3)(1.0, 0.0, 1.0)
+#define DEBUGCOLOR2 (float3)(0.0, 1.0, 1.0)
+
+float SphericalTheta( const float3 v )
 {
 	return acos( clamp( v.z, -1.f, 1.f ) );
 }
@@ -258,7 +261,7 @@ float3 VoxelNormal( const uint side, const float3 D )
 	if (side == 2) return (float3)(0, 0, D.z > 0 ? -1 : 1 );
 }
 
-int getRandomLightIndex(const int length, uint* seed)
+int getRandomIndex(const int length, uint* seed)
 {
 	return RandomFloat(seed) * (length - 1);
 }
