@@ -48,19 +48,19 @@ void MyGame::SetupReservoirBuffers()
 {
 	World& world = *GetWorld();
 
-	Buffer* reservoirbuffer = world.GetReservoirsBuffer();
+	Buffer* reservoirbuffer = world.GetReservoirsBuffer()[0];
 	const int numberOfReservoirs = SCRWIDTH * SCRHEIGHT;
 	if (!reservoirbuffer)
 	{
 		reservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetReservoirBuffer(reservoirbuffer);
+		world.SetReservoirBuffer(reservoirbuffer, 0);
 	}
 
-	Buffer* prevReservoirbuffer = world.GetPrevReservoirsBuffer();
+	Buffer* prevReservoirbuffer = world.GetReservoirsBuffer()[1];
 	if (!prevReservoirbuffer)
 	{
 		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
-		world.SetPrevReservoirBuffer(prevReservoirbuffer);
+		world.SetReservoirBuffer(prevReservoirbuffer, 1);
 	}
 }
 

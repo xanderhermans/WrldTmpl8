@@ -1535,6 +1535,11 @@ void World::Render()
 		// get render parameters to GPU and invoke kernel asynchronously
 		paramBuffer->CopyToDevice( false );
 
+		static int reservoirbufferi = 0;
+		int reservoirbuffer0 = reservoirbufferi;
+		int reservoirbuffer1 = (reservoirbufferi + 1) % 2;
+		printf("(%d %d) (%d %d) (%d %d)\n", reservoirbuffer0, reservoirbuffer1, reservoirbuffer1, reservoirbuffer0, reservoirbuffer1, reservoirbuffer0);
+
 		if (!screen)
 		{
 			screen = new Buffer( targetTextureID, Buffer::TARGET );
@@ -1556,8 +1561,8 @@ void World::Render()
 
 #if RIS == 1
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
-			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffer);
-			currentRenderer->SetArgument(renderer_arg_i++, prevReservoirBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer1]);
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer0]);
 #endif
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap );
 			currentRenderer->SetArgument(renderer_arg_i++, sky );
@@ -1590,8 +1595,8 @@ void World::Render()
 		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, prevReservoirBuffer);
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer0]);
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer1]);
 		perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
 		perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
 		perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
@@ -1602,8 +1607,9 @@ void World::Render()
 		spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer);
 		spatialResampling->SetArgument(spatialRisi++, paramBuffer);
 		spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffer);
-		spatialResampling->SetArgument(spatialRisi++, prevReservoirBuffer);
+		// swap prev and current so prevReservoirBuffer will be written to as current
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer1]);
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer0]);
 		spatialResampling->SetArgument(spatialRisi++, &gridMap);
 		spatialResampling->SetArgument(spatialRisi++, &uberGrid);
 		spatialResampling->SetArgument(spatialRisi++, brickBuffer);
@@ -1642,6 +1648,7 @@ void World::Render()
 		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
 
+		reservoirbufferi = (reservoirbufferi + 1) % 2;
 		params.frame = params.frame + 1 & 255;
 		if (params.accumulate) params.framecount = params.framecount + 1;
 		else params.framecount = 0;

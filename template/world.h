@@ -188,11 +188,9 @@ public:
 	Buffer* GetAccumulatorBuffer() { return accumulator; }
 	Buffer* GetLightsBuffer() { return lightsBuffer; }
 	Buffer* GetDebugBuffer() { return debugBuffer; }
-	Buffer* GetReservoirsBuffer() { return reservoirBuffer; }
-	Buffer* GetPrevReservoirsBuffer() { return prevReservoirBuffer; }
+	Buffer** GetReservoirsBuffer() { return reservoirBuffers; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
-	void SetPrevReservoirBuffer(Buffer* buffer) { prevReservoirBuffer = buffer; }
-	void SetReservoirBuffer(Buffer* buffer) { reservoirBuffer = buffer; }
+	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
 	void Render();
 	float GetRenderTime() { return renderTime; }
@@ -437,8 +435,7 @@ private:
 	Buffer* sky = 0;					// OpenCL buffer for a HDR skydome
 	Buffer* blueNoise = 0;				// blue noise data
 	Buffer* lightsBuffer = 0;
-	Buffer* reservoirBuffer = 0;
-	Buffer* prevReservoirBuffer = 0;
+	Buffer* reservoirBuffers[2] = { 0 };
 	Buffer* primaryHitBuffer = 0;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
