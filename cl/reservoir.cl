@@ -1,3 +1,9 @@
+struct Reservoir EmptyReservoir()
+{
+	struct Reservoir r = { 0.0, 0, 0, 0.0, 0 };
+	return r;
+}
+
 void UpdateReservoir(struct Reservoir* _this, const float weight, const uint index, const float r0)
 {
 	_this->streamLength += 1;
@@ -6,6 +12,13 @@ void UpdateReservoir(struct Reservoir* _this, const float weight, const uint ind
 	{
 		_this->lightIndex = index;
 	}
+}
+
+void Resize(struct Reservoir* _this, const int length)
+{
+	float avgWeight = _this->sumOfWeights / max(1.0, convert_float(_this->streamLength));
+	_this->streamLength = length;
+	_this->sumOfWeights = avgWeight * length;
 }
 
 void CombineReservoir(struct Reservoir* _this, struct Reservoir* _that, const float r0)

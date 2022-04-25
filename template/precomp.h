@@ -1279,6 +1279,11 @@ struct KeyHandler
 		last = state;
 		return state == 0 && _last != state;
 	}
+
+	bool isPressed()
+	{
+		return GetAsyncKeyState(key) != 0;
+	}
 };
 
 // game

@@ -25,7 +25,7 @@
 #define PAYLOAD unsigned char
 #define PAYLOADSIZE	1
 #else
-// 16-bit voxels: MRGB4444, where M=material index
+// 16-bit voxels: MRGB4444, where M=emitter strength
 #define VOXEL16
 #define PAYLOAD unsigned short
 #define PAYLOADSIZE 2
@@ -45,7 +45,9 @@
 #define NUMBEROFCANDIDATES 32
 #define SPATIALRADIUS 30
 #define SPATIALTAPS 5
-#define USESPATIAL false
+#define USESPATIAL true
+#define TEMPORALMAXIMPORTANCE 20 // limit the weight of the reservoir by 20 times the weight of a single frame reservoir
+#define USETEMPORAL true
 
 #define SPATIALDEBUG 0
 
@@ -56,6 +58,7 @@
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
 
+// MIMIC SHADING AS IN GfxExp by Shocker-0x15
 #define GFXEXP 0
 
 // some useful color names
@@ -90,7 +93,7 @@ struct RenderParams
 {
 	float2 oneOverRes;
 	float3 E, p0, p1, p2;
-	uint R0, frame, framecount;
+	uint R0, frame, framecount, restirtemporalframe;
 	uint skyWidth, skyHeight;
 	float4 skyLight[6];
 	float skyLightScale, dummy1, dummy2, dummy3;
@@ -101,6 +104,7 @@ struct RenderParams
 	bool accumulate, spatial, temporal;
 	uint numberOfLights;
 	uint numberOfCandidates;
+	uint numberOfMaxTemporalImportance;
 };
 
 struct CLRay
@@ -118,12 +122,18 @@ struct Light
 	uint voxel;
 };
 
+#define LIGHTINDEXMASK 0x7fffffff
 struct Reservoir 
 {
 	float sumOfWeights; 
 	uint streamLength; 
 	uint lightIndex;
 	float adjustedWeight;
+
+	// fields below should be packed into the other fields later, 
+	// to make the struct fit in a cacheline
+	// use LIGHTINDEXMASK
+	bool traced;
 };
 
 // debugging
@@ -132,6 +142,9 @@ struct DebugInfo
 	float4 f1;
 	float4 f2;
 	struct Reservoir res;
+	struct Reservoir res1;
+	struct Reservoir res2;
+	struct Reservoir res3;
 };
 
 // lighting for 6 normals for sky15.hdr

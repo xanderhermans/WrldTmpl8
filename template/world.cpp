@@ -89,6 +89,7 @@ World::World( const uint targetID )
 	
 	params.frame = 0;
 	params.framecount = 0;
+	params.restirtemporalframe = 0;
 	// initialize kernels
 	paramBuffer = new Buffer( sizeof( RenderParams ) / 4, Buffer::DEFAULT | Buffer::READONLY, &params );
 	debugBuffer = new Buffer(sizeof(DebugInfo) / 4, 0, &debugInfo);
@@ -1538,8 +1539,7 @@ void World::Render()
 		static int reservoirbufferi = 0;
 		int reservoirbuffer0 = reservoirbufferi;
 		int reservoirbuffer1 = (reservoirbufferi + 1) % 2;
-		printf("(%d %d) (%d %d) (%d %d)\n", reservoirbuffer0, reservoirbuffer1, reservoirbuffer1, reservoirbuffer0, reservoirbuffer1, reservoirbuffer0);
-
+		
 		if (!screen)
 		{
 			screen = new Buffer( targetTextureID, Buffer::TARGET );
@@ -1649,9 +1649,9 @@ void World::Render()
 	#endif
 
 		reservoirbufferi = (reservoirbufferi + 1) % 2;
-		params.frame = params.frame + 1 & 255;
-		if (params.accumulate) params.framecount = params.framecount + 1;
-		else params.framecount = 0;
+		params.frame = params.frame + 1 & 255; 
+		params.framecount = params.framecount + 1;
+		params.restirtemporalframe = params.restirtemporalframe + 1;
 	}
 }
 

@@ -301,3 +301,8 @@ uint3 GridCoordinatesFromHit(const int side, const float3 D, const float dist, c
 	const float3 coordInsideVoxel = hitPoint - N * 0.1;
 	return convert_uint3(coordInsideVoxel);
 }
+
+bool uint3equals(const uint3 v1, const uint3 v2)
+{
+	return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
+}

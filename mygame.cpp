@@ -16,6 +16,7 @@ float3 D = _D, O = _O;
 static bool shouldDumpBuffer = false;
 static bool takeScreenshot = false;
 static bool useSpatialResampling = USESPATIAL;
+static bool useTemporalResampling = USETEMPORAL;
 // -----------------------------------------------------------
 // Initialize the application
 // -----------------------------------------------------------
@@ -36,9 +37,11 @@ void MyGame::Init()
 		WorldToOBJ(GetWorld(), export_path);
 	}
 
-	GetWorld()->GetRenderParams().accumulate = true;
+	GetWorld()->GetRenderParams().accumulate = false;
 	GetWorld()->GetRenderParams().spatial = useSpatialResampling;
+	GetWorld()->GetRenderParams().temporal = useTemporalResampling;
 	GetWorld()->GetRenderParams().numberOfCandidates = NUMBEROFCANDIDATES;
+	GetWorld()->GetRenderParams().numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
 
 	SetupLightBuffers();
 	SetupReservoirBuffers();
@@ -109,8 +112,8 @@ void MyGame::SetupLightBuffers()
 		lightbuffer->ownData = true;
 	}
 
-	printf("Number of emitting voxels: %d\n", numberOfLights); 
-	
+	printf("Number of emitting voxels: %d\n", numberOfLights);
+
 	Light* lightsData = (Light*)lightbuffer->hostBuffer;
 	for (int i = 0; i < lights.size(); i++)
 	{
@@ -128,6 +131,18 @@ KeyHandler qHandler = { 0, 'Q' };
 KeyHandler eHandler = { 0, 'E' };
 KeyHandler spaceHandler = { 0, VK_SPACE };
 KeyHandler cHandler = { 0, 'C' };
+KeyHandler vHandler = { 0, 'V' };
+KeyHandler nHandler = { 0, 'N' };
+KeyHandler mHandler = { 0, 'M' };
+KeyHandler wHandler = { 0, 'W' };
+KeyHandler sHandler = { 0, 'S' };
+KeyHandler aHandler = { 0, 'A' };
+KeyHandler dHandler = { 0, 'D' };
+KeyHandler rHandler = { 0, 'R' };
+KeyHandler fHandler = { 0, 'F' };
+KeyHandler zHandler = { 0, 'Z' };
+KeyHandler lHandler = { 0, 'L' };
+KeyHandler xHandler = { 0, 'X' };
 void MyGame::HandleControls(float deltaTime)
 {
 	if (!isFocused) return; // ignore controls if window doesnt have focus
@@ -135,48 +150,66 @@ void MyGame::HandleControls(float deltaTime)
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.03f;
 	bool dirty = false;
+	RenderParams& renderparams = GetWorld()->GetRenderParams();
 
 	if (qHandler.IsTyped()) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
 	if (eHandler.IsTyped()) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
 
-	if (GetAsyncKeyState('W')) { O += speed * D; dirty = true; }
-	else if (GetAsyncKeyState('S')) { O -= speed * D; dirty = true; }
-	if (GetAsyncKeyState('A')) { O -= speed * right; dirty = true; }
-	else if (GetAsyncKeyState('D')) { O += speed * right; dirty = true; }
+	if (wHandler.isPressed()) { O += speed * D; dirty = true; }
+	else if (sHandler.isPressed()) { O -= speed * D; dirty = true; }
+	if (aHandler.isPressed()) { O -= speed * right; dirty = true; }
+	else if (dHandler.isPressed()) { O += speed * right; dirty = true; }
 
-	if (GetAsyncKeyState('R')) { O += speed * up; dirty = true; }
-	else if (GetAsyncKeyState('F')) { O -= speed * up; dirty = true; }
+	if (rHandler.isPressed()) { O += speed * up; dirty = true; }
+	else if (fHandler.isPressed()) { O -= speed * up; dirty = true; }
 
 	if (GetAsyncKeyState(VK_LEFT)) { D = normalize(D - right * 0.025f * speed); dirty = true; }
 	else if (GetAsyncKeyState(VK_RIGHT)) { D = normalize(D + right * 0.025f * speed); dirty = true; }
 	if (GetAsyncKeyState(VK_UP)) { D = normalize(D - up * 0.025f * speed); dirty = true; }
 	else if (GetAsyncKeyState(VK_DOWN)) { D = normalize(D + up * 0.025f * speed); dirty = true; }
 
-	if (GetAsyncKeyState('Z')) { D = _D; O = _O; dirty = true; }
+	if (zHandler.isPressed()) { D = _D; O = _O; dirty = true; }
 
-	if (GetAsyncKeyState('L')) { PrintStats(); };
+	if (lHandler.isPressed()) { PrintStats(); };
 	if (cHandler.IsTyped())
 	{
 		dirty = true;
 		useSpatialResampling = !useSpatialResampling;
-		GetWorld()->GetRenderParams().spatial = useSpatialResampling;
+		renderparams.spatial = useSpatialResampling;
+	}
+	if (vHandler.IsTyped())
+	{
+		dirty = true;
+		useTemporalResampling = !useTemporalResampling;
+		renderparams.temporal = useTemporalResampling;
+	}
+	if (nHandler.IsTyped())
+	{
+		dirty = true;
+		renderparams.numberOfMaxTemporalImportance = max(0, (int)renderparams.numberOfMaxTemporalImportance - 1);
+	}
+	if (mHandler.IsTyped())
+	{
+		dirty = true;
+		renderparams.numberOfMaxTemporalImportance = renderparams.numberOfMaxTemporalImportance + 1;
 	}
 
 	LookAt(O, O + D);
 
 	if (spaceHandler.IsTyped())
 	{
-		GetWorld()->GetRenderParams().accumulate = !GetWorld()->GetRenderParams().accumulate;
+		renderparams.accumulate = !renderparams.accumulate;
 		dirty = true;
 	}
-	if (GetAsyncKeyState('X'))
+	if (xHandler.isPressed())
 	{
 		dirty = true;
 	}
 	if (dirty)
 	{
-		GetWorld()->GetRenderParams().framecount = 0;
-		GetWorld()->GetRenderParams().frame = 0;
+		renderparams.restirtemporalframe = 0; // TODO : Motion vectors
+		renderparams.framecount = 0;
+		renderparams.frame = 0;
 	}
 }
 
@@ -202,18 +235,21 @@ void MyGame::PrintStats()
 void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
-
+	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	// clear line
 	//printf("                                                            \r");
+	//printf("temporal frames %d\r", renderparams.numberOfMaxTemporalImportance);
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
-	//clWaitForEvents(1,&GetWorld()->GetRenderDoneEventHandle());
-	//GetWorld()->GetDebugBuffer()->CopyFromDevice();
-	//DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
-	//uint lightIndex = (uint)(debugInfo->f1.x);
-	//Light light = (reinterpret_cast<Light*>(GetWorld()->GetLightsBuffer()->hostBuffer))[lightIndex];
-	//printf("f1 %f %f %f %f f2 %f %f %f %f res %f %d %d %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w, debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w, debugInfo->res.sumOfWeights, debugInfo->res.streamLength, debugInfo->res.lightIndex, debugInfo->res.adjustedWeight);
-
+	clWaitForEvents(1, &GetWorld()->GetRenderDoneEventHandle());
+	GetWorld()->GetDebugBuffer()->CopyFromDevice();
+	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
+	Reservoir& res = debugInfo->res; Reservoir& res1 = debugInfo->res1; Reservoir& res2 = debugInfo->res2; Reservoir& res3 = debugInfo->res3;
+	//printf("res %d %f %d %d %f\n", res.traced, res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
+	//printf("res %d %f %d %d %f\n", res1.traced, res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
+	//printf("res %d %f %d %d %f\n", res2.traced, res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
+	//printf("res %d %f %d %d %f\n", res3.traced, res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
+	//printf("\n");
 	DumpScreenBuffer();
 }
 

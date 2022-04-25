@@ -5,7 +5,7 @@ void generateLightCandidate(const uint numberOfLights, float* probability, uint*
 }
 
 float evaluatePHat(
-	__global struct Light* lights, uint lightIndex, float3 N, 
+	__global struct Light* lights, uint lightIndex, float3 N,
 	float3 brdf, float3 shadingPoint)
 {
 	struct Light* light = &lights[lightIndex];
@@ -25,40 +25,106 @@ float evaluatePHat(
 	return pHat;
 }
 
+bool isLightOccluded(const struct Light* light, const float3 shadingPoint,
+	float3* L, float3* R, uint* side, float* dist,
+	__read_only image3d_t grid,
+	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0,
+	bool notrace
+)
+{
+	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
+	float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
+
+	*R = emitterVoxelCoordsf - shadingPoint;
+	*L = normalize(*R);
+	*dist = length(*R);
+	// Note that side is not set when notrace = true
+	if (notrace) return false;
+	const uint voxel2 = TraceRay((float4)(shadingPoint, 0), (float4)(*L, 1.0), dist, side, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
+	uint3 hitVoxelCoords = GridCoordinatesFromHit(*side, *L, *dist, shadingPoint);
+
+	// if we hit the emitter we know nothing occluded it
+	return !uint3equals(emitterVoxelCoords, hitVoxelCoords);
+}
+
 // candidate sampling + temporal sampling
-__kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo, 
-	__global struct CLRay* albedo, __constant struct RenderParams* params, 
-	__global struct Light* lights, 
-	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs, 
+__kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
+	__global struct CLRay* albedo, __constant struct RenderParams* params,
+	__global struct Light* lights,
+	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
 )
 {
 	const int x = get_global_id(0), y = get_global_id(1);
 	struct CLRay* ray = &albedo[x + y * SCRWIDTH];
-	uint* seedptr = &ray->seed;
-	const float3 D = ray->rayDirection;
-	const float3 N = VoxelNormal(ray->side, D);
-	const float3 brdf = ToFloatRGB(ray->voxelValue) * INVPI;
-	const float3 shadingPoint = D * ray->distance + params->E;
+	const float dist = ray->distance;
+	const uint voxelValue = ray->voxelValue;
 
-	const uint numberOfLights = params->numberOfLights;
-	const uint numberOfCandidates = min(numberOfLights, params->numberOfCandidates);
+	struct Reservoir res = { 0.0, 0, 0, 0.0, 0 };
 
-	struct Reservoir res = {0.0, 0, 0, 0.0};
-	
-	for (int i = 0; i < numberOfCandidates; i++)
+	if (voxelValue != 0)
 	{
-		uint lightIndex;
-		float p;
-		generateLightCandidate(numberOfLights, &p, &lightIndex, seedptr);
+		uint* seedptr = &ray->seed;
 
-		float pHat = evaluatePHat(lights, lightIndex, N, brdf, shadingPoint);
-		UpdateReservoir(&res, pHat / p, lightIndex, RandomFloat(seedptr));
+		const float3 D = ray->rayDirection;
+		const float3 N = VoxelNormal(ray->side, D);
+		const float3 brdf = ToFloatRGB(voxelValue) * INVPI;
+		const float3 shadingPoint = D * dist + params->E;
+
+		const uint numberOfLights = params->numberOfLights;
+		const uint numberOfCandidates = min(numberOfLights, params->numberOfCandidates);
+
+		// BEGIN CANDIDATE SAMPLING
+		for (int i = 0; i < numberOfCandidates; i++)
+		{
+			uint lightIndex;
+			float p;
+			generateLightCandidate(numberOfLights, &p, &lightIndex, seedptr);
+
+			float pHat = evaluatePHat(lights, lightIndex, N, brdf, shadingPoint);
+			UpdateReservoir(&res, pHat / p, lightIndex, RandomFloat(seedptr));
+		}
+
+		float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
+		AdjustWeight(&res, pHat);
+
+		uint lightIndex = res.lightIndex;
+		struct Light* light = &lights[lightIndex];
+
+		float3 L, R; float dist; uint side;
+		if (isLightOccluded(light, shadingPoint + 0.1 * N, &L, &R, &side, &dist, grid, uberGrid, brick0, false))
+		{
+			// discarded
+			res.adjustedWeight = 0;
+			res.sumOfWeights = 0;
+			res.sumOfWeights = 0;
+			res.lightIndex = 0;
+			res.traced = 0;
+		}
+		// END CANDIDATE SAMPLING
+
+		// BEGIN TEMPORAL SAMPLING
+		if (params->restirtemporalframe > 0 && params->temporal)
+		{
+			// todo : motionvector
+			struct Reservoir prevRes = prevReservoirs[x + y * SCRWIDTH];
+			const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
+			float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
+			float prevSumOfWeights = prevRes.adjustedWeight * prevStreamLength * prev_pHat;
+			
+			prevRes.sumOfWeights = prevSumOfWeights;
+			prevRes.streamLength = prevStreamLength;
+
+			CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
+
+			float _pHat = res.lightIndex == lightIndex ? pHat : prev_pHat;
+			AdjustWeight(&res, _pHat);
+		}
+		// END TEMPORAL SAMPLING
+
+		res.traced = res.lightIndex == lightIndex; // TODO : we write to the first bit that we already checked shadowray for this light, pixel combination.
 	}
-
-	float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
-	AdjustWeight(&res, pHat);
 
 	reservoirs[x + y * SCRWIDTH] = res;
 }
@@ -74,14 +140,23 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 {
 	const int x = get_global_id(0), y = get_global_id(1);
 	struct CLRay* ray = &albedo[x + y * SCRWIDTH];
-	uint* seedptr = &ray->seed;
-	float3 shadingPoint = ray->rayDirection * ray->distance + params->E;
+	const float dist = ray->distance;
+	const uint voxelValue = ray->voxelValue;
+
+	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
+
+	if (voxelValue != 0)
+	{
+
+	}
+
+	reservoirs[x + y * SCRWIDTH] = res;
 }
 
 // Shading step
-float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* hit, 
+float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* hit,
 	const int2 screenPos, __constant struct RenderParams* params,
-	__global struct Light* lights, 
+	__global struct Light* lights,
 	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid,
 	__global const PAYLOAD* brick0,
@@ -99,9 +174,9 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	uint side = hit->side;
 	float3 N = VoxelNormal(side, D);
 	uint* seedptr = &hit->seed;
-	uint voxel = hit->voxelValue; 
+	uint voxel = hit->voxelValue;
 	uint numberOfLights = params->numberOfLights;
-	
+
 	struct Reservoir* res = &reservoirs[x + y * SCRWIDTH];
 
 	float3 color = (float3)(0.0, 0.0, 0.0);
@@ -114,45 +189,50 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 		res->lightIndex = 0;
 		res->adjustedWeight = 0.0;
 	}
-	// hit emitter
-	else if (IsEmitter(voxel))
-	{
-		color = ToFloatRGB(voxel) * EmitStrength(voxel);
-	}
-	// hit other voxel
 	else
 	{
-		const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
-
-		const float3 primaryHitPoint = D * dist + params->E;
-
-		uint lightIndex = res->lightIndex;
-		struct Light* light = &lights[lightIndex];
-		uint3 emitterVoxelCoords = indexToCoordinates(light->position);
-		float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
-
-		uint emitterVoxel = light->voxel;
-
-		float3 R = emitterVoxelCoordsf - primaryHitPoint;
-		float3 L = normalize(R);
-		uint side2;
-		float dist2 = 0;
-		const uint voxel2 = TraceRay((float4)(primaryHitPoint, 0) + 0.1f * (float4)(N, 0), (float4)(L, 1.0), &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
-		uint3 hitVoxelCoords = GridCoordinatesFromHit(side2, L, dist2, primaryHitPoint);
-		
-		// if we hit the emitter we know nothing occluded it
-		if (hitVoxelCoords.x == emitterVoxelCoords.x 
-			&& hitVoxelCoords.y == emitterVoxelCoords.y
-			&& hitVoxelCoords.z == emitterVoxelCoords.z)
+		// hit emitter
+		if (IsEmitter(voxel))
 		{
-			const float NdotL = max(dot(N, L), 0.0);
-
-			float distancesquared = max(dot(R, R), 10e-6);
-			const float3 directContribution = (ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel) * NdotL / distancesquared) * res->adjustedWeight;
-			const float3 incoming = BRDF1 * directContribution;
-
-			color = incoming;
+			float3 emitterColor = ToFloatRGB(voxel) * EmitStrength(voxel);
+#if GFXEXP == 1
+			emitterColor *= INVPI;
+#endif
+			color += emitterColor;
 		}
+		// hit other voxel and we have a light to sample from the reservoir sampling
+#if GFXEXP == 0
+		else
+#endif
+			if (res->adjustedWeight > 0 && res->streamLength > 0)
+			{
+				const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
+
+				const float3 shadingPoint = D * dist + params->E;
+
+				uint lightIndex = res->lightIndex & LIGHTINDEXMASK;
+				struct Light* light = &lights[lightIndex];
+
+				float3 L, R; float dist2; uint side2;
+				// we already know its unoccluded from tracing in the reservoir sampling
+				bool notrace = res->traced;
+				// if we hit the emitter we know nothing occluded it
+				if (!isLightOccluded(light, shadingPoint + 0.1 * N, &L, &R, &side2, &dist2, grid, uberGrid, brick0, notrace))
+				{
+					const float NdotL = max(dot(N, L), 0.0);
+					uint emitterVoxel = light->voxel;
+					float3 emitterColor = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel);
+#if GFXEXP == 1
+					emitterColor *= INVPI;
+#endif
+
+					float distancesquared = max(dist2 * dist2, 10e-6);
+					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * res->adjustedWeight;
+					const float3 incoming = BRDF1 * directContribution;
+
+					color += incoming;
+				}
+			}
 	}
 
 	prevReservoirs[x + y * SCRWIDTH] = *res;
@@ -160,7 +240,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	return (float4)(color, dist);
 }
 
-__kernel void renderAlbedo(__global struct DebugInfo* debugInfo, 
+__kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	__global struct CLRay* albedo, __constant struct RenderParams* params,
 	__read_only image3d_t grid,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
@@ -176,6 +256,8 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	float dist = 0;
 	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	//float3 hit_position = D * dist + params->E;
+	//uint3 hitVoxelCoords = GridCoordinatesFromHit(side, D, dist, params->E);
+	//uint voxel1 = Get(hitVoxelCoords.x, hitVoxelCoords.y, hitVoxelCoords.z, grid, BRICKPARAMS);
 
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	hit->voxelValue = voxel;
