@@ -2,7 +2,7 @@
 #include "mygame.h"
 #include "mygamescene.h"
 #include <filesystem>
-
+#include <unordered_map>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
@@ -17,6 +17,9 @@ static bool shouldDumpBuffer = false;
 static bool takeScreenshot = false;
 static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
+
+static unordered_map<string, void*> commands;
+
 // -----------------------------------------------------------
 // Initialize the application
 // -----------------------------------------------------------
@@ -37,11 +40,21 @@ void MyGame::Init()
 		WorldToOBJ(GetWorld(), export_path);
 	}
 
-	GetWorld()->GetRenderParams().accumulate = false;
-	GetWorld()->GetRenderParams().spatial = useSpatialResampling;
-	GetWorld()->GetRenderParams().temporal = useTemporalResampling;
-	GetWorld()->GetRenderParams().numberOfCandidates = NUMBEROFCANDIDATES;
-	GetWorld()->GetRenderParams().numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+	RenderParams& params = GetWorld()->GetRenderParams();
+	params.accumulate = false;
+	params.spatial = useSpatialResampling;
+	params.temporal = useTemporalResampling;
+	params.spatialTaps = SPATIALTAPS;
+	params.spatialRadius = SPATIALRADIUS;
+	params.numberOfCandidates = NUMBEROFCANDIDATES;
+	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+
+	commands.insert({ "spatialtaps", &params.spatialTaps });
+	commands.insert({ "spatialradius", &params.spatialRadius });
+	commands.insert({ "numberofcandidates", &params.numberOfCandidates });
+	commands.insert({ "temporalimportance", &params.numberOfMaxTemporalImportance });
+	commands.insert({ "spatial", &params.spatial });
+	commands.insert({ "temporal", &params.temporal });
 
 	SetupLightBuffers();
 	SetupReservoirBuffers();
@@ -130,6 +143,10 @@ void MyGame::SetupLightBuffers()
 KeyHandler qHandler = { 0, 'Q' };
 KeyHandler eHandler = { 0, 'E' };
 KeyHandler spaceHandler = { 0, VK_SPACE };
+KeyHandler leftHandler = { 0, VK_LEFT };
+KeyHandler rightHandler = { 0, VK_RIGHT };
+KeyHandler upHandler = { 0, VK_UP };
+KeyHandler downHandler = { 0, VK_DOWN };
 KeyHandler cHandler = { 0, 'C' };
 KeyHandler vHandler = { 0, 'V' };
 KeyHandler nHandler = { 0, 'N' };
@@ -143,15 +160,63 @@ KeyHandler fHandler = { 0, 'F' };
 KeyHandler zHandler = { 0, 'Z' };
 KeyHandler lHandler = { 0, 'L' };
 KeyHandler xHandler = { 0, 'X' };
+KeyHandler flagHandler = { 0, 'I' };
 void MyGame::HandleControls(float deltaTime)
 {
-	if (!isFocused) return; // ignore controls if window doesnt have focus
 	// free cam controls
 	float3 tmp(0, 1, 0), right = normalize(cross(tmp, D)), up = cross(D, right);
 	float speed = deltaTime * 0.03f;
 	bool dirty = false;
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 
+	if (flagHandler.IsTyped() && (ConsoleHasFocus() || isFocused))
+	{
+		if (isFocused)
+		{
+			BOOL ret = SetForegroundWindow(GetConsoleWindow());
+		}
+		printf("input:");
+		string input;
+		getline(cin, input);
+		stringstream ss(input);
+		char delim = ' ';
+		vector<string> words;
+		string word;
+		while (getline(ss, word, delim))
+		{
+			words.push_back(word);
+		}
+		bool success = false;
+		if (words.size() > 0 && words[0] == "help")
+		{
+			stringstream ss;
+			for (auto& it : commands)
+			{
+				ss << it.first << ", ";
+			}
+			printf("%s\n", ss.str().substr(0, ss.str().size() - 2).c_str());
+			success = true;
+		}
+		else if (words.size() > 1 && commands.find(words[0]) != commands.end())
+		{
+			int result;
+			success = string_to <int>(words[1], result);
+			if (success)
+			{
+				int* address = reinterpret_cast<int*>(commands[words[0]]);
+				*address = result;
+				//printf("%s %d\n", words[0].c_str(), *address);
+			}
+		}
+		if (!success)
+		{
+			printf("Command not recognized. Write `help` to get a list of commands\n");
+		}
+		// ignore rest of input
+		return;
+	}
+
+	if (!isFocused) return; // ignore controls if window doesnt have focus
 	if (qHandler.IsTyped()) { shouldDumpBuffer = true; printf("Dumping screenbuffer queued.\n"); }
 	if (eHandler.IsTyped()) { takeScreenshot = true; printf("Next dump is screenshot.\n"); }
 
@@ -163,10 +228,10 @@ void MyGame::HandleControls(float deltaTime)
 	if (rHandler.isPressed()) { O += speed * up; dirty = true; }
 	else if (fHandler.isPressed()) { O -= speed * up; dirty = true; }
 
-	if (GetAsyncKeyState(VK_LEFT)) { D = normalize(D - right * 0.025f * speed); dirty = true; }
-	else if (GetAsyncKeyState(VK_RIGHT)) { D = normalize(D + right * 0.025f * speed); dirty = true; }
-	if (GetAsyncKeyState(VK_UP)) { D = normalize(D - up * 0.025f * speed); dirty = true; }
-	else if (GetAsyncKeyState(VK_DOWN)) { D = normalize(D + up * 0.025f * speed); dirty = true; }
+	if (leftHandler.isPressed()) { D = normalize(D - right * 0.025f * speed); dirty = true; }
+	else if (rightHandler.isPressed()) { D = normalize(D + right * 0.025f * speed); dirty = true; }
+	if (upHandler.isPressed()) { D = normalize(D - up * 0.025f * speed); dirty = true; }
+	else if (downHandler.isPressed()) { D = normalize(D + up * 0.025f * speed); dirty = true; }
 
 	if (zHandler.isPressed()) { D = _D; O = _O; dirty = true; }
 

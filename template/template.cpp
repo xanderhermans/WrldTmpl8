@@ -320,7 +320,14 @@ void KeyEventCallback( GLFWwindow* window, int key, int scancode, int action, in
 	else if (action == GLFW_RELEASE) { if (game) if (key >= 0) game->KeyUp( key ); }
 }
 void CharEventCallback( GLFWwindow* window, uint code ) { /* nothing here yet */ }
-void WindowFocusCallback(GLFWwindow* window, int focused) { hasFocus = (focused == GL_TRUE); if (game != nullptr) { game->isFocused = (focused == GL_TRUE); } }
+void WindowFocusCallback(GLFWwindow* window, int focused) 
+{ 
+	hasFocus = (focused == GL_TRUE); 
+	if (game != nullptr) 
+	{ 
+		game->isFocused = (focused == GL_TRUE);
+	}
+}
 void MouseButtonCallback( GLFWwindow* window, int button, int action, int mods )
 {
 	if (action == GLFW_PRESS) { if (game) game->MouseDown( button ); }
@@ -367,11 +374,19 @@ void main()
 #ifdef _MSC_VER
 	CONSOLE_SCREEN_BUFFER_INFO coninfo;
 	AllocConsole();
+
+	DWORD mode;
+	HANDLE h_console;
+	h_console = GetStdHandle(STD_INPUT_HANDLE);
+	GetConsoleMode(h_console, (LPDWORD)&mode);
+	SetConsoleMode(h_console, mode & 0xFFFFFFEF);
+
 	GetConsoleScreenBufferInfo( GetStdHandle( STD_OUTPUT_HANDLE ), &coninfo );
 	coninfo.dwSize.X = 1280;
 	coninfo.dwSize.Y = 800;
 	SetConsoleScreenBufferSize( GetStdHandle( STD_OUTPUT_HANDLE ), coninfo.dwSize );
 	FILE* file = nullptr;
+	freopen_s( &file, "CON", "r", stdin );
 	freopen_s( &file, "CON", "w", stdout );
 	freopen_s( &file, "CON", "w", stderr );
 	SetWindowPos( GetConsoleWindow(), HWND_TOP, 0, 0, 1280, 800, 0 );

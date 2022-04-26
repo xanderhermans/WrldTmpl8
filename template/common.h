@@ -43,11 +43,11 @@
 // RIS
 #define RIS			1
 #define NUMBEROFCANDIDATES 32
-#define SPATIALRADIUS 30
-#define SPATIALTAPS 5
+#define SPATIALRADIUS 30 // radius of pixel neighbour reservoirs which can be selected for spatial resampling
+#define SPATIALTAPS 5 // amount of pixel neighbour reservoirs that are selected for spatial resampling
 #define USESPATIAL true
 #define TEMPORALMAXIMPORTANCE 20 // limit the weight of the reservoir by 20 times the weight of a single frame reservoir
-#define USETEMPORAL true
+#define USETEMPORAL false
 
 #define SPATIALDEBUG 0
 
@@ -105,6 +105,8 @@ struct RenderParams
 	uint numberOfLights;
 	uint numberOfCandidates;
 	uint numberOfMaxTemporalImportance;
+	uint spatialRadius;
+	uint spatialTaps;
 };
 
 struct CLRay

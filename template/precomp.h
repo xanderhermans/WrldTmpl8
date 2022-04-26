@@ -1266,7 +1266,6 @@ public:
 #include "world.h"
 #include "worldapi.h"
 #include "world_to_obj.h"
-
 struct KeyHandler
 {
 	SHORT last = 0;
@@ -1277,7 +1276,7 @@ struct KeyHandler
 		SHORT state = GetAsyncKeyState(key);
 		SHORT _last = last;
 		last = state;
-		return state == 0 && _last != state;
+		return state == 0 && _last < 0;
 	}
 
 	bool isPressed()
@@ -1285,6 +1284,15 @@ struct KeyHandler
 		return GetAsyncKeyState(key) != 0;
 	}
 };
+
+template <typename T>
+bool string_to(const std::string& s, T& result)
+{
+	std::istringstream ss(s);
+	ss >> result >> std::ws;			// attempt the conversion
+	if (ss.eof()) return true;			// success
+	return false;						// failure
+}
 
 // game
 class Game
@@ -1300,6 +1308,12 @@ public:
 	virtual void KeyDown( int key ) = 0;
 	virtual void Render(Surface* surface) {};
 	virtual void PreRender() {};
+	virtual bool ConsoleHasFocus() 
+	{
+		HWND _focus1 = GetForegroundWindow();
+		HWND _focus2 = GetConsoleWindow();
+		return _focus1 != NULL && _focus1 == _focus2;
+	};
 	Surface* screen = 0;
 	static inline bool isFocused = true;
 	// settings

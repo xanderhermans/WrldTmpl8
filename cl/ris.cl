@@ -147,7 +147,13 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 
 	if (voxelValue != 0)
 	{
+		if (params->spatial)
+		{
+			for (int i = 0; i < params->spatialTaps; i++)
+			{
 
+			}
+		}
 	}
 
 	reservoirs[x + y * SCRWIDTH] = res;
