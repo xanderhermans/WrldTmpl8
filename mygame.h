@@ -5,6 +5,7 @@ namespace Tmpl8
 
 class MyGame : public Game
 {
+	void PrintDebug();
 	void PrintStats();
 public:
 	void SetupLightBuffers();

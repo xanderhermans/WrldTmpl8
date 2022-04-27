@@ -183,6 +183,7 @@ public:
 	void SetCameraPos( const float3 P ) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
 	mat4& GetCameraMatrix() { return camMat; }
 	RenderParams& GetRenderParams() { return params; }
+	DebugInfo& GetDebugInfo() { return debugInfo; }
 	cl_event& GetRenderDoneEventHandle() { return renderDone; }
 	Buffer* GetFrameBuffer() { return tmpFrame; }
 	Buffer* GetAccumulatorBuffer() { return accumulator; }
@@ -439,6 +440,7 @@ private:
 	Buffer* primaryHitBuffer = 0;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
+	DebugInfo debugInfo;
 	Kernel* albedoRender;
 	Kernel* perPixelLightSampling;
 	Kernel* spatialResampling;

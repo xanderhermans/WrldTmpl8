@@ -9,6 +9,8 @@
 
 Game* CreateGame() { return new MyGame(); }
 
+// -name scene -obj ../scene/scene.obj 1.0 trad -inst scene -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 -cam-pos -107.85 60.81 -48.86
+// -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 -cam-pos -107.85 60.81 -48.86
 //float3 _D(0, 0, 1), _O(107.85, 60.81, -48.86);
 float3 _D(0.11, -0.22, 0.97), _O(107.85, 60.81, -48.86);
 float3 D = _D, O = _O;
@@ -48,6 +50,7 @@ void MyGame::Init()
 	params.spatialRadius = SPATIALRADIUS;
 	params.numberOfCandidates = NUMBEROFCANDIDATES;
 	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+	GetWorld()->GetDebugInfo().counter = 0;
 
 	commands.insert({ "spatialtaps", &params.spatialTaps });
 	commands.insert({ "spatialradius", &params.spatialRadius });
@@ -294,6 +297,24 @@ void MyGame::PrintStats()
 	printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\n", D.x, D.y, D.z, O.x, O.y, O.z, fov);
 }
 
+void MyGame::PrintDebug()
+{
+	clWaitForEvents(1, &GetWorld()->GetRenderDoneEventHandle());
+	GetWorld()->GetDebugBuffer()->CopyFromDevice();
+	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
+	Reservoir& res = debugInfo->res; Reservoir& res1 = debugInfo->res1; Reservoir& res2 = debugInfo->res2; Reservoir& res3 = debugInfo->res3;
+	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
+	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
+	//printf("res %f %d %d %f\n", res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
+	//printf("res %f %d %d %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
+	//printf("res %f %f %f %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w);
+	//printf("res %f %f %f %f\n", debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w);
+	//printf("%d\n", debugInfo->counter);
+	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
+	debugInfo->counter = 0;
+	GetWorld()->GetDebugBuffer()->CopyToDevice();
+}
+
 // -----------------------------------------------------------
 // Main application tick function
 // -----------------------------------------------------------
@@ -306,17 +327,8 @@ void MyGame::Tick(float deltaTime)
 	//printf("temporal frames %d\r", renderparams.numberOfMaxTemporalImportance);
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
-	clWaitForEvents(1, &GetWorld()->GetRenderDoneEventHandle());
-	GetWorld()->GetDebugBuffer()->CopyFromDevice();
-	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
-	Reservoir& res = debugInfo->res; Reservoir& res1 = debugInfo->res1; Reservoir& res2 = debugInfo->res2; Reservoir& res3 = debugInfo->res3;
-	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
-	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
-	//printf("res %d %f %d %d %f\n", res2.traced, res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
-	//printf("res %d %f %d %d %f\n", res3.traced, res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
-	//printf("res %f %f %f %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w);
-	//printf("res %f %f %f %f\n", debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w);
-	//printf("\n");
+	//PrintDebug();
+
 	DumpScreenBuffer();
 }
 

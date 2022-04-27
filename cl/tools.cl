@@ -290,10 +290,6 @@ uint Get(const uint x, const uint y, const uint z,
 	return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
 }
 
-int modulo(int x, int N) {
-	return (x % N + N) % N;
-}
-
 uint3 GridCoordinatesFromHit(const int side, const float3 D, const float dist, const float3 O)
 {
 	const float3 N = VoxelNormal(side, D);
@@ -302,7 +298,12 @@ uint3 GridCoordinatesFromHit(const int side, const float3 D, const float dist, c
 	return convert_uint3(coordInsideVoxel);
 }
 
-bool uint3equals(const uint3 v1, const uint3 v2)
+bool Uint3equals(const uint3 v1, const uint3 v2)
 {
 	return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
+}
+
+float3 ShadingPoint(const struct CLRay* ray, const float3 O)
+{
+	return ray->rayDirection * ray->distance + O;
 }

@@ -47,7 +47,7 @@ bool isLightOccluded(const uint3 emitterVoxelCoords, const float3 shadingPoint,
 	uint3 hitVoxelCoords = GridCoordinatesFromHit(tracedside, L, traceddistance, shadingPoint);
 
 	// if we hit the emitter we know nothing occluded it
-	return !uint3equals(emitterVoxelCoords, hitVoxelCoords);
+	return !Uint3equals(emitterVoxelCoords, hitVoxelCoords);
 }
 
 // candidate sampling + temporal sampling
@@ -115,13 +115,10 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		{
 			// todo : motionvector
 			struct Reservoir prevRes = prevReservoirs[x + y * SCRWIDTH];
-			prevRes.lightIndex &= LIGHTINDEXMASK;
 			const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
 			float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
-			float prevSumOfWeights = prevRes.adjustedWeight * prevStreamLength * prev_pHat;
 			
-			prevRes.sumOfWeights = prevSumOfWeights;
-			prevRes.streamLength = prevStreamLength;
+			ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
 
 			CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
 
@@ -130,7 +127,6 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		}
 		// END TEMPORAL SAMPLING
 
-		res.lightIndex |= (res.lightIndex == lightIndex) * LIGHTTRACEDMASK;
 	}
 
 	reservoirs[x + y * SCRWIDTH] = res;
@@ -147,8 +143,14 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 {
 	const int x = get_global_id(0), y = get_global_id(1);
 	struct CLRay* ray = &albedo[x + y * SCRWIDTH];
+	uint* seedptr = &ray->seed;
 	const float dist = ray->distance;
 	const uint voxelValue = ray->voxelValue;
+	const float3 D = ray->rayDirection;
+	const uint side = ray->side;
+	const float3 N = VoxelNormal(side, D);
+	const float3 brdf = ToFloatRGB(voxelValue) * INVPI;
+	const float3 shadingPoint = D * dist + params->E;
 
 	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
 
@@ -156,10 +158,48 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 	{
 		if (params->spatial)
 		{
+			uint lightIndex = res.lightIndex;
+			float prevAdjustedWeight = res.adjustedWeight;
+
 			for (int i = 0; i < params->spatialTaps; i++)
 			{
+				float angle = RandomFloat(seedptr) * TWOPI;
+				float radius = convert_float(params->spatialRadius) * sqrt(RandomFloat(seedptr));
+				int xOffset = convert_int(cos(angle) * radius);
+				int yOffset = convert_int(sin(angle) * radius);
+				int neighbourX = x + xOffset;
+				int neighbourY = y + yOffset;
 
+				// if neighbour is out of bounds or the same as our current reservoir we reject it.				
+				if ((neighbourX == x && neighbourY == y)
+					|| neighbourX < 0 || neighbourY < 0
+					|| neighbourX >= SCRWIDTH || neighbourY >= SCRHEIGHT)
+				{
+					continue;
+				}
+
+				struct Reservoir neighbourRes = prevReservoirs[neighbourX + neighbourY * SCRWIDTH];
+
+				const struct CLRay* neigbourRay = &albedo[neighbourX + neighbourY * SCRWIDTH];
+				const uint neighbourSide = neigbourRay->side;
+				const float neighbourDist = neigbourRay->distance;
+				if (neighbourSide != side || distance(dist, neighbourDist) > 0.15 * dist)
+				{
+					continue;
+				}
+
+				// use the world coordinate?
+				//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
+
+				//re-evaluate sum of weights with new phat
+				float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
+				ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
+				
+				CombineReservoir(&res, &neighbourRes, RandomFloat(seedptr));
 			}
+
+			float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
+			AdjustWeight(&res, pHat);
 		}
 	}
 
@@ -190,17 +230,13 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	uint voxel = hit->voxelValue;
 	uint numberOfLights = params->numberOfLights;
 
-	struct Reservoir* res = &reservoirs[x + y * SCRWIDTH];
+	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
 
 	float3 color = (float3)(0.0, 0.0, 0.0);
 	// hit the background/exit the scene
 	if (voxel == 0)
 	{
 		dist = 1e20f;
-		res->sumOfWeights = 0.0;
-		res->streamLength = 0;
-		res->lightIndex = 0;
-		res->adjustedWeight = 0.0;
 	}
 	else
 	{
@@ -217,41 +253,37 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 #if GFXEXP == 0
 		else
 #endif
-			if (res->adjustedWeight > 0 && res->streamLength > 0)
+			if (res.adjustedWeight > 0 && res.streamLength > 0)
 			{
 				const float3 BRDF1 = INVPI * ToFloatRGB(voxel);
 
 				const float3 shadingPoint = D * dist + params->E;
 
-				uint lightIndex = res->lightIndex & LIGHTINDEXMASK;
-				struct Light* light = &lights[lightIndex];
-				uint3 emitterVoxelCoords = indexToCoordinates(light->position);
+				uint lightIndex = res.lightIndex;
+				struct Light light = lights[lightIndex];
+				uint3 emitterVoxelCoords = indexToCoordinates(light.position);
 
 				float3 L, R; float dist2;
 				const float3 shadingPointOffset = shadingPoint + 0.1 * N;
 				rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
-				// we already know its unoccluded from tracing in the reservoir sampling
-				bool notrace = res->lightIndex & LIGHTTRACEDMASK;
 				// if we hit the emitter we know nothing occluded it
-				if (notrace || !isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
+				if (!isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
 				{
 					const float NdotL = max(dot(N, L), 0.0);
-					uint emitterVoxel = light->voxel;
+					uint emitterVoxel = light.voxel;
 					float3 emitterColor = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel);
 #if GFXEXP == 1
 					emitterColor *= INVPI;
 #endif
 
 					float distancesquared = max(dist2 * dist2, 10e-6);
-					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * res->adjustedWeight;
+					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * res.adjustedWeight;
 					const float3 incoming = BRDF1 * directContribution;
 
 					color += incoming;
 				}
 			}
 	}
-
-	prevReservoirs[x + y * SCRWIDTH] = *res;
 
 	return (float4)(color, dist);
 }

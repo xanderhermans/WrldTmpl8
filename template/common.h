@@ -45,7 +45,7 @@
 #define NUMBEROFCANDIDATES 32
 #define SPATIALRADIUS 30 // radius of pixel neighbour reservoirs which can be selected for spatial resampling
 #define SPATIALTAPS 5 // amount of pixel neighbour reservoirs that are selected for spatial resampling
-#define USESPATIAL true
+#define USESPATIAL false
 #define TEMPORALMAXIMPORTANCE 20 // limit the weight of the reservoir by 20 times the weight of a single frame reservoir
 #define USETEMPORAL false
 
@@ -101,7 +101,7 @@ struct RenderParams
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
-	bool accumulate, spatial, temporal;
+	int accumulate, spatial, temporal; //booleans
 	uint numberOfLights;
 	uint numberOfCandidates;
 	uint numberOfMaxTemporalImportance;
@@ -124,8 +124,8 @@ struct Light
 	uint voxel;
 };
 
-#define LIGHTINDEXMASK 0x7fffffff
-#define LIGHTTRACEDMASK 0x80000000
+//#define LIGHTINDEXMASK 0x7fffffff
+//#define LIGHTTRACEDMASK 0x80000000
 struct Reservoir 
 {
 	float sumOfWeights; 
@@ -142,6 +142,7 @@ struct Reservoir
 // debugging
 struct DebugInfo
 {
+	int counter;
 	float4 f1;
 	float4 f2;
 	struct Reservoir res;

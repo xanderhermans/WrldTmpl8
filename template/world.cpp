@@ -39,8 +39,6 @@ float3 DiffuseReflectionCosWeighted( const float r0, const float r1, const float
 float SphericalTheta( const float3& v ) { return acosf( clamp( v.z, -1.f, 1.f ) ); }
 float SphericalPhi( const float3& v ) { const float p = atan2f( v.y, v.x ); return (p < 0) ? (p + 2 * PI) : p; }
 
-static DebugInfo debugInfo;
-
 // World Constructor
 // ----------------------------------------------------------------------------
 World::World( const uint targetID )
@@ -1561,8 +1559,8 @@ void World::Render()
 
 #if RIS == 1
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
-			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer1]);
-			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer0]);
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer0]); //write
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer1]); //read
 #endif
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap );
 			currentRenderer->SetArgument(renderer_arg_i++, sky );
@@ -1595,8 +1593,8 @@ void World::Render()
 		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer0]);
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer1]);
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer0]); //write
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer1]); //read
 		perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
 		perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
 		perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
@@ -1608,8 +1606,8 @@ void World::Render()
 		spatialResampling->SetArgument(spatialRisi++, paramBuffer);
 		spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
 		// swap prev and current so prevReservoirBuffer will be written to as current
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer1]);
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer0]);
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer1]); //write
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer0]); //read
 		spatialResampling->SetArgument(spatialRisi++, &gridMap);
 		spatialResampling->SetArgument(spatialRisi++, &uberGrid);
 		spatialResampling->SetArgument(spatialRisi++, brickBuffer);
@@ -1648,7 +1646,7 @@ void World::Render()
 		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
 
-		reservoirbufferi = (reservoirbufferi + 1) % 2;
+		//reservoirbufferi = (reservoirbufferi + 1) % 2;
 		params.frame = params.frame + 1 & 255; 
 		params.framecount = params.framecount + 1;
 		params.restirtemporalframe = params.restirtemporalframe + 1;
