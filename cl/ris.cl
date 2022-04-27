@@ -25,23 +25,26 @@ float evaluatePHat(
 	return pHat;
 }
 
-bool isLightOccluded(const struct Light* light, const float3 shadingPoint,
-	float3* L, float3* R, uint* side, float* dist,
-	__read_only image3d_t grid,
-	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0,
-	bool notrace
-)
+void rayToCenterOfVoxelsAtCoord(const uint3 emitterVoxelCoords, const float3 shadingPoint,
+	float3* L, float3* R, float* dist)
 {
-	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
 	float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
 
 	*R = emitterVoxelCoordsf - shadingPoint;
 	*L = normalize(*R);
 	*dist = length(*R);
-	// Note that side is not set when notrace = true
-	if (notrace) return false;
-	const uint voxel2 = TraceRay((float4)(shadingPoint, 0), (float4)(*L, 1.0), dist, side, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
-	uint3 hitVoxelCoords = GridCoordinatesFromHit(*side, *L, *dist, shadingPoint);
+}
+
+bool isLightOccluded(const uint3 emitterVoxelCoords, const float3 shadingPoint,
+	const float3 L, const float3 R, const float dist,
+	__read_only image3d_t grid,
+	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
+)
+{
+	float traceddistance;
+	uint tracedside;
+	const uint voxel2 = TraceRay((float4)(shadingPoint, 0), (float4)(L, 1.0), &traceddistance, &tracedside, grid, uberGrid, BRICKPARAMS, GRIDWIDTH);
+	uint3 hitVoxelCoords = GridCoordinatesFromHit(tracedside, L, traceddistance, shadingPoint);
 
 	// if we hit the emitter we know nothing occluded it
 	return !uint3equals(emitterVoxelCoords, hitVoxelCoords);
@@ -92,15 +95,18 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		uint lightIndex = res.lightIndex;
 		struct Light* light = &lights[lightIndex];
 
-		float3 L, R; float dist; uint side;
-		if (isLightOccluded(light, shadingPoint + 0.1 * N, &L, &R, &side, &dist, grid, uberGrid, brick0, false))
+		uint3 emitterVoxelCoords = indexToCoordinates(light->position);
+
+		float3 L, R; float dist2;
+		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
+		rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
+		if (isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0)) 
 		{
 			// discarded
 			res.adjustedWeight = 0;
 			res.sumOfWeights = 0;
 			res.sumOfWeights = 0;
 			res.lightIndex = 0;
-			res.traced = 0;
 		}
 		// END CANDIDATE SAMPLING
 
@@ -109,6 +115,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		{
 			// todo : motionvector
 			struct Reservoir prevRes = prevReservoirs[x + y * SCRWIDTH];
+			prevRes.lightIndex &= LIGHTINDEXMASK;
 			const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
 			float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
 			float prevSumOfWeights = prevRes.adjustedWeight * prevStreamLength * prev_pHat;
@@ -123,7 +130,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		}
 		// END TEMPORAL SAMPLING
 
-		res.traced = res.lightIndex == lightIndex; // TODO : we write to the first bit that we already checked shadowray for this light, pixel combination.
+		res.lightIndex |= (res.lightIndex == lightIndex) * LIGHTTRACEDMASK;
 	}
 
 	reservoirs[x + y * SCRWIDTH] = res;
@@ -218,12 +225,15 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 				uint lightIndex = res->lightIndex & LIGHTINDEXMASK;
 				struct Light* light = &lights[lightIndex];
+				uint3 emitterVoxelCoords = indexToCoordinates(light->position);
 
-				float3 L, R; float dist2; uint side2;
+				float3 L, R; float dist2;
+				const float3 shadingPointOffset = shadingPoint + 0.1 * N;
+				rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
 				// we already know its unoccluded from tracing in the reservoir sampling
-				bool notrace = res->traced;
+				bool notrace = res->lightIndex & LIGHTTRACEDMASK;
 				// if we hit the emitter we know nothing occluded it
-				if (!isLightOccluded(light, shadingPoint + 0.1 * N, &L, &R, &side2, &dist2, grid, uberGrid, brick0, notrace))
+				if (notrace || !isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
 				{
 					const float NdotL = max(dot(N, L), 0.0);
 					uint emitterVoxel = light->voxel;

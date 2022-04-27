@@ -125,6 +125,7 @@ struct Light
 };
 
 #define LIGHTINDEXMASK 0x7fffffff
+#define LIGHTTRACEDMASK 0x80000000
 struct Reservoir 
 {
 	float sumOfWeights; 
@@ -135,7 +136,7 @@ struct Reservoir
 	// fields below should be packed into the other fields later, 
 	// to make the struct fit in a cacheline
 	// use LIGHTINDEXMASK
-	bool traced;
+	//bool traced;
 };
 
 // debugging

@@ -310,10 +310,12 @@ void MyGame::Tick(float deltaTime)
 	GetWorld()->GetDebugBuffer()->CopyFromDevice();
 	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
 	Reservoir& res = debugInfo->res; Reservoir& res1 = debugInfo->res1; Reservoir& res2 = debugInfo->res2; Reservoir& res3 = debugInfo->res3;
-	//printf("res %d %f %d %d %f\n", res.traced, res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
-	//printf("res %d %f %d %d %f\n", res1.traced, res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
+	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
+	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
 	//printf("res %d %f %d %d %f\n", res2.traced, res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
 	//printf("res %d %f %d %d %f\n", res3.traced, res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
+	//printf("res %f %f %f %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w);
+	//printf("res %f %f %f %f\n", debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w);
 	//printf("\n");
 	DumpScreenBuffer();
 }
