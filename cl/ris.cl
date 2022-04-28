@@ -1,3 +1,9 @@
+void _perPixelSpatialResampling(const uint x, const uint y,
+	__global struct DebugInfo* debugInfo,
+	__constant struct RenderParams* params, __global struct CLRay* albedo,
+	__global struct Light* lights,
+	struct Reservoir* res, struct Reservoir* prevReservoirs);
+
 void generateLightCandidate(const uint numberOfLights, float* probability, uint* index, uint* seedptr)
 {
 	*index = getRandomIndex(numberOfLights, seedptr);
@@ -100,7 +106,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		float3 L, R; float dist2;
 		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
 		rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
-		if (isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0)) 
+		if (isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
 		{
 			// discarded
 			res.adjustedWeight = 0;
@@ -117,7 +123,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 			struct Reservoir prevRes = prevReservoirs[x + y * SCRWIDTH];
 			const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
 			float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
-			
+
 			ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
 
 			CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
@@ -127,21 +133,23 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		}
 		// END TEMPORAL SAMPLING
 
+		//spatiotemporal instead of a spatial pass?
+		//if (params->spatial)
+		//{
+		//	_perPixelSpatialResampling(x, y, debugInfo, params, albedo, lights, &res, prevReservoirs);
+		//}
+		
 	}
-
 	reservoirs[x + y * SCRWIDTH] = res;
 }
 
 // spatial resampling
-__kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
-	__global struct CLRay* albedo, __constant struct RenderParams* params,
+void _perPixelSpatialResampling(const uint x, const uint y,
+	__global struct DebugInfo* debugInfo,
+	__constant struct RenderParams* params, __global struct CLRay* albedo,
 	__global struct Light* lights,
-	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
-	__read_only image3d_t grid,
-	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
-)
+	struct Reservoir* res, struct Reservoir* prevReservoirs)
 {
-	const int x = get_global_id(0), y = get_global_id(1);
 	struct CLRay* ray = &albedo[x + y * SCRWIDTH];
 	uint* seedptr = &ray->seed;
 	const float dist = ray->distance;
@@ -152,59 +160,75 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 	const float3 brdf = ToFloatRGB(voxelValue) * INVPI;
 	const float3 shadingPoint = D * dist + params->E;
 
+	for (int i = 0; i < params->spatialTaps; i++)
+	{
+		float angle = RandomFloat(seedptr) * TWOPI;
+		// radius = (r - 1) * [0..1] + 1 so we minimze the probability of picking a radius that ends up with the current pixel
+		float radius = convert_float(params->spatialRadius - 1) * sqrt(RandomFloat(seedptr)) + 1.0;
+		int xOffset = convert_int(cos(angle) * radius);
+		int yOffset = convert_int(sin(angle) * radius);
+		int neighbourX = x + xOffset;
+		int neighbourY = y + yOffset;
+
+		// if neighbour is out of bounds or the same as our current reservoir we reject it.				
+		if ((neighbourX == x && neighbourY == y)
+			|| neighbourX < 0 || neighbourY < 0
+			|| neighbourX >= SCRWIDTH || neighbourY >= SCRHEIGHT)
+		{
+			continue;
+		}
+
+		uint neighbourIndex = neighbourX + neighbourY * SCRWIDTH;
+		struct Reservoir neighbourRes = prevReservoirs[neighbourIndex];
+
+		const struct CLRay* neigbourRay = &albedo[neighbourIndex];
+		const uint neighbourSide = neigbourRay->side;
+		const float neighbourDist = neigbourRay->distance;
+		if (neighbourSide != side || distance(dist, neighbourDist) > 0.15 * dist)
+		{
+			continue;
+		}
+
+		// use the world coordinate?
+		//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
+
+		//re-evaluate sum of weights with new phat
+		float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
+		ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
+		//ReWeighSumOfWeights(&neighbourRes, new_pHat, 32);
+
+		CombineReservoir(res, &neighbourRes, RandomFloat(seedptr));
+	}
+
+	float pHat = evaluatePHat(lights, res->lightIndex, N, brdf, shadingPoint);
+	AdjustWeight(res, pHat);
+}
+
+__kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
+	__global struct CLRay* albedo, __constant struct RenderParams* params,
+	__global struct Light* lights,
+	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
+	__read_only image3d_t grid,
+	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
+)
+{
+	const uint x = get_global_id(0), y = get_global_id(1);
+
 	struct Reservoir res = prevReservoirs[x + y * SCRWIDTH];
 
+	struct CLRay* ray = &albedo[x + y * SCRWIDTH];
+	const uint voxelValue = ray->voxelValue;
 	if (voxelValue != 0)
 	{
 		if (params->spatial)
 		{
-			uint lightIndex = res.lightIndex;
-			float prevAdjustedWeight = res.adjustedWeight;
-
-			for (int i = 0; i < params->spatialTaps; i++)
-			{
-				float angle = RandomFloat(seedptr) * TWOPI;
-				float radius = convert_float(params->spatialRadius) * sqrt(RandomFloat(seedptr));
-				int xOffset = convert_int(cos(angle) * radius);
-				int yOffset = convert_int(sin(angle) * radius);
-				int neighbourX = x + xOffset;
-				int neighbourY = y + yOffset;
-
-				// if neighbour is out of bounds or the same as our current reservoir we reject it.				
-				if ((neighbourX == x && neighbourY == y)
-					|| neighbourX < 0 || neighbourY < 0
-					|| neighbourX >= SCRWIDTH || neighbourY >= SCRHEIGHT)
-				{
-					continue;
-				}
-
-				struct Reservoir neighbourRes = prevReservoirs[neighbourX + neighbourY * SCRWIDTH];
-
-				const struct CLRay* neigbourRay = &albedo[neighbourX + neighbourY * SCRWIDTH];
-				const uint neighbourSide = neigbourRay->side;
-				const float neighbourDist = neigbourRay->distance;
-				if (neighbourSide != side || distance(dist, neighbourDist) > 0.15 * dist)
-				{
-					continue;
-				}
-
-				// use the world coordinate?
-				//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
-
-				//re-evaluate sum of weights with new phat
-				float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
-				ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
-				
-				CombineReservoir(&res, &neighbourRes, RandomFloat(seedptr));
-			}
-
-			float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
-			AdjustWeight(&res, pHat);
+			_perPixelSpatialResampling(x, y, debugInfo, params, albedo, lights, &res, prevReservoirs);
 		}
 	}
 
 	reservoirs[x + y * SCRWIDTH] = res;
 }
+
 
 // Shading step
 float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* hit,
@@ -316,7 +340,8 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 }
 
 __kernel void renderRIS(__global struct DebugInfo* debugInfo, __global struct CLRay* albedo, __global float4* frame, __constant struct RenderParams* params,
-	__global struct Light* lights, __global struct Reservoir* reservoirs, __global struct Reservoir* initialSampling,
+	__global struct Light* lights,
+	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid, __global float4* sky, __global const uint* blueNoise,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
 #if ONEBRICKBUFFER == 0
@@ -328,8 +353,9 @@ __kernel void renderRIS(__global struct DebugInfo* debugInfo, __global struct CL
 	const int x = get_global_id(0), y = get_global_id(1);
 
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
-	float4 pixel = render_di_ris(debugInfo, hit, (int2)(x, y), params, lights, reservoirs, initialSampling, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
+	float4 pixel = render_di_ris(debugInfo, hit, (int2)(x, y), params, lights, reservoirs, prevReservoirs, grid, BRICKPARAMS, sky, blueNoise, uberGrid);
 
 	// store pixel in linear color space, to be processed by finalize kernel for TAA
 	frame[x + y * SCRWIDTH] = pixel; // depth in w
+	reservoirs[x + y * SCRWIDTH] = prevReservoirs[x + y * SCRWIDTH];
 }

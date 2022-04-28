@@ -309,7 +309,7 @@ void MyGame::PrintDebug()
 	//printf("res %f %d %d %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
 	//printf("res %f %f %f %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w);
 	//printf("res %f %f %f %f\n", debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w);
-	//printf("%d\n", debugInfo->counter);
+	printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
 	debugInfo->counter = 0;
 	GetWorld()->GetDebugBuffer()->CopyToDevice();

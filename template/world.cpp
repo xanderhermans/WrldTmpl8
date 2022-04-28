@@ -1534,9 +1534,17 @@ void World::Render()
 		// get render parameters to GPU and invoke kernel asynchronously
 		paramBuffer->CopyToDevice( false );
 
-		static int reservoirbufferi = 0;
-		int reservoirbuffer0 = reservoirbufferi;
-		int reservoirbuffer1 = (reservoirbufferi + 1) % 2;
+		static int reservoirBufferOutIndex = 0;
+		static int reservoirBufferInIndex = 1;
+		int initialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
+		int initialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
+		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
+		int spatialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
+		int spatialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
+		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
+		int shadingReservoirBufferOutIndex = reservoirBufferOutIndex;
+		int shadingReservoirBufferInIndex = reservoirBufferInIndex;
+		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
 		
 		if (!screen)
 		{
@@ -1556,11 +1564,9 @@ void World::Render()
 		#endif
 
 			currentRenderer->SetArgument(renderer_arg_i++, paramBuffer );
-
 #if RIS == 1
 			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
-			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer0]); //write
-			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[reservoirbuffer1]); //read
+			renderer_arg_i += 2;
 #endif
 			currentRenderer->SetArgument(renderer_arg_i++, &gridMap );
 			currentRenderer->SetArgument(renderer_arg_i++, sky );
@@ -1593,8 +1599,8 @@ void World::Render()
 		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
 		perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer0]); //write
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[reservoirbuffer1]); //read
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferOutIndex]); //write
+		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferInIndex]); //read
 		perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
 		perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
 		perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
@@ -1606,13 +1612,17 @@ void World::Render()
 		spatialResampling->SetArgument(spatialRisi++, paramBuffer);
 		spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
 		// swap prev and current so prevReservoirBuffer will be written to as current
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer1]); //write
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[reservoirbuffer0]); //read
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferOutIndex]); //write
+		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferInIndex]); //read
 		spatialResampling->SetArgument(spatialRisi++, &gridMap);
 		spatialResampling->SetArgument(spatialRisi++, &uberGrid);
 		spatialResampling->SetArgument(spatialRisi++, brickBuffer);
 		spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
-		
+
+#if RIS
+		currentRenderer->SetArgument(5, reservoirBuffers[shadingReservoirBufferOutIndex]); //write
+		currentRenderer->SetArgument(6, reservoirBuffers[shadingReservoirBufferInIndex]); //read
+#endif
 		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
 		int finalizerargi = 0;
@@ -1646,7 +1656,6 @@ void World::Render()
 		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 	#endif
 
-		//reservoirbufferi = (reservoirbufferi + 1) % 2;
 		params.frame = params.frame + 1 & 255; 
 		params.framecount = params.framecount + 1;
 		params.restirtemporalframe = params.restirtemporalframe + 1;
