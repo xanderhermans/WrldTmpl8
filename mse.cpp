@@ -138,6 +138,7 @@ KeyHandler numhandlers[10] = {
 };
 void MSE::HandleControls(float deltaTime)
 {
+	if (!isFocused) return; // ignore controls if window doesnt have focus
 	if (ehandler.IsTyped())
 	{
 		imageindex = imageindex + 1;

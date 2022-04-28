@@ -77,7 +77,8 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		uint* seedptr = &ray->seed;
 
 		const float3 D = ray->rayDirection;
-		const float3 N = VoxelNormal(ray->side, D);
+		const uint side = ray->side;
+		const float3 N = VoxelNormal(side, D);
 		const float3 brdf = ToFloatRGB(voxelValue) * INVPI;
 		const float3 shadingPoint = D * dist + params->E;
 
@@ -119,17 +120,26 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		// BEGIN TEMPORAL SAMPLING
 		if (params->restirtemporalframe > 0 && params->temporal)
 		{
-			// todo : motionvector
-			struct Reservoir prevRes = prevReservoirs[x + y * SCRWIDTH];
-			const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
-			float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
+			int2 prevxy = ReprojectWorldPoint(params, shadingPoint);
+			if (IsInBounds(prevxy, (int2)(0, 0), (int2)(SCRWIDTH, SCRHEIGHT)))
+			{
+				struct CLRay* prevRay = &albedo[prevxy.x + prevxy.y * SCRWIDTH];
+				const uint prevSide = prevRay->side;
+				const float prevDist = prevRay->distance;
+				if (prevSide == side && distance(dist, prevDist) <= 0.15 * dist)
+				{
+					struct Reservoir prevRes = prevReservoirs[prevxy.x + prevxy.y * SCRWIDTH];
+					const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
+					float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
 
-			ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
+					ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
 
-			CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
+					CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
 
-			float _pHat = res.lightIndex == lightIndex ? pHat : prev_pHat;
-			AdjustWeight(&res, _pHat);
+					float _pHat = res.lightIndex == lightIndex ? pHat : prev_pHat;
+					AdjustWeight(&res, _pHat);
+				}
+			}
 		}
 		// END TEMPORAL SAMPLING
 

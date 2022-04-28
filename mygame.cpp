@@ -275,7 +275,7 @@ void MyGame::HandleControls(float deltaTime)
 	}
 	if (dirty)
 	{
-		renderparams.restirtemporalframe = 0; // TODO : Motion vectors
+		//renderparams.restirtemporalframe = 0; // TODO : Motion vectors
 		renderparams.framecount = 0;
 		renderparams.frame = 0;
 	}
@@ -302,14 +302,16 @@ void MyGame::PrintDebug()
 	clWaitForEvents(1, &GetWorld()->GetRenderDoneEventHandle());
 	GetWorld()->GetDebugBuffer()->CopyFromDevice();
 	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
-	Reservoir& res = debugInfo->res; Reservoir& res1 = debugInfo->res1; Reservoir& res2 = debugInfo->res2; Reservoir& res3 = debugInfo->res3;
+	Reservoir res = debugInfo->res; Reservoir res1 = debugInfo->res1; Reservoir res2 = debugInfo->res2; Reservoir res3 = debugInfo->res3;
+	float4 f1 = debugInfo->f1; float4 f2 = debugInfo->f2;
+	RenderParams params = GetWorld()->GetRenderParams();
 	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
 	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
 	//printf("res %f %d %d %f\n", res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
 	//printf("res %f %d %d %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
-	//printf("res %f %f %f %f\n", debugInfo->f1.x, debugInfo->f1.y, debugInfo->f1.z, debugInfo->f1.w);
-	//printf("res %f %f %f %f\n", debugInfo->f2.x, debugInfo->f2.y, debugInfo->f2.z, debugInfo->f2.w);
-	printf("%d\n", debugInfo->counter);
+	//printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
+	//printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
+	//printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
 	debugInfo->counter = 0;
 	GetWorld()->GetDebugBuffer()->CopyToDevice();
@@ -328,7 +330,7 @@ void MyGame::Tick(float deltaTime)
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
 	//PrintDebug();
-
+	//PrintStats();
 	DumpScreenBuffer();
 }
 

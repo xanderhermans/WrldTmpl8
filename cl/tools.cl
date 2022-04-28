@@ -307,3 +307,20 @@ float3 ShadingPoint(const struct CLRay* ray, const float3 O)
 {
 	return ray->rayDirection * ray->distance + O;
 }
+
+int2 ReprojectWorldPoint(__constant struct RenderParams* params, const float3 pixelPos)
+{
+	const float dl = dot(pixelPos, params->Nleft.xyz) - params->Nleft.w;
+	const float dr = dot(pixelPos, params->Nright.xyz) - params->Nright.w;
+	const float dt = dot(pixelPos, params->Ntop.xyz) - params->Ntop.w;
+	const float db = dot(pixelPos, params->Nbottom.xyz) - params->Nbottom.w;
+	const float u_prev = SCRWIDTH * (dl / (dl + dr));
+	const float v_prev = SCRHEIGHT * (dt / (dt + db));
+	return (int2)(round(u_prev), round(v_prev));
+}
+
+// min inclusive, max exclusive
+bool IsInBounds(const int2 coords, const int2 _min, const int2 _max)
+{
+	return coords.x >= _min.x && coords.y >= _min.y && coords.x < _max.x&& coords.y < _max.y;
+}
