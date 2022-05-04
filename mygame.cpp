@@ -3,6 +3,7 @@
 #include "mygamescene.h"
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
@@ -21,6 +22,8 @@ static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
 
 static unordered_map<string, void*> commands;
+static unordered_map<uint, uint> lightsmap;
+static unordered_set<uint> unusedlightindices;
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -106,6 +109,7 @@ void MyGame::SetupLightBuffers()
 					Light light;
 					light.position = x + z * sizex + y * sizex * sizez;
 					light.voxel = c;
+					light.dirty = 0;
 					lights.push_back(light);
 				}
 			}
@@ -135,8 +139,8 @@ void MyGame::SetupLightBuffers()
 	{
 		auto light = lights[i];
 		lightsData[i] = light;
+		lightsmap[light.position] = i;
 	}
-
 
 	world.GetRenderParams().numberOfLights = numberOfLights;
 	lightbuffer->CopyToDevice();
@@ -310,9 +314,11 @@ void MyGame::PrintDebug()
 	//printf("res %f %d %d %f\n", res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
 	//printf("res %f %d %d %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
 	//printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
+	//if (f1.x != f1.y) printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
 	//printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
 	//printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
+	printf("\n");
 	debugInfo->counter = 0;
 	GetWorld()->GetDebugBuffer()->CopyToDevice();
 }
@@ -332,6 +338,11 @@ void MyGame::Tick(float deltaTime)
 	//PrintDebug();
 	//PrintStats();
 	DumpScreenBuffer();
+}
+
+void MyGame::SetLight(uint x, uint y, uint z, uint color, uint strength)
+{
+
 }
 
 union convertor {

@@ -1,6 +1,7 @@
 void _perPixelSpatialResampling(const uint x, const uint y,
 	__global struct DebugInfo* debugInfo,
-	__constant struct RenderParams* params, __global struct CLRay* albedo,
+	__constant struct RenderParams* params,
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo,
 	__global struct Light* lights,
 	struct Reservoir* res, struct Reservoir* prevReservoirs);
 
@@ -58,7 +59,8 @@ bool isLightOccluded(const uint3 emitterVoxelCoords, const float3 shadingPoint,
 
 // candidate sampling + temporal sampling
 __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
-	__global struct CLRay* albedo, __constant struct RenderParams* params,
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo, 
+	__constant struct RenderParams* params,
 	__global struct Light* lights,
 	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid,
@@ -112,8 +114,6 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 			// discarded
 			res.adjustedWeight = 0;
 			res.sumOfWeights = 0;
-			res.sumOfWeights = 0;
-			res.lightIndex = 0;
 		}
 		// END CANDIDATE SAMPLING
 
@@ -123,7 +123,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 			int2 prevxy = ReprojectWorldPoint(params, shadingPoint);
 			if (IsInBounds(prevxy, (int2)(0, 0), (int2)(SCRWIDTH, SCRHEIGHT)))
 			{
-				struct CLRay* prevRay = &albedo[prevxy.x + prevxy.y * SCRWIDTH];
+				struct CLRay* prevRay = &prevAlbedo[prevxy.x + prevxy.y * SCRWIDTH];
 				const uint prevSide = prevRay->side;
 				const float prevDist = prevRay->distance;
 				if (prevSide == side && distance(dist, prevDist) <= 0.15 * dist)
@@ -136,7 +136,9 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 
 					CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
 
+					// already calculated potential contribution. re-use.
 					float _pHat = res.lightIndex == lightIndex ? pHat : prev_pHat;
+
 					AdjustWeight(&res, _pHat);
 				}
 			}
@@ -148,7 +150,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		//{
 		//	_perPixelSpatialResampling(x, y, debugInfo, params, albedo, lights, &res, prevReservoirs);
 		//}
-		
+
 	}
 	reservoirs[x + y * SCRWIDTH] = res;
 }
@@ -156,7 +158,8 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 // spatial resampling
 void _perPixelSpatialResampling(const uint x, const uint y,
 	__global struct DebugInfo* debugInfo,
-	__constant struct RenderParams* params, __global struct CLRay* albedo,
+	__constant struct RenderParams* params, 
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo,
 	__global struct Light* lights,
 	struct Reservoir* res, struct Reservoir* prevReservoirs)
 {
@@ -191,23 +194,26 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 		uint neighbourIndex = neighbourX + neighbourY * SCRWIDTH;
 		struct Reservoir neighbourRes = prevReservoirs[neighbourIndex];
 
-		const struct CLRay* neigbourRay = &albedo[neighbourIndex];
-		const uint neighbourSide = neigbourRay->side;
-		const float neighbourDist = neigbourRay->distance;
-		if (neighbourSide != side || distance(dist, neighbourDist) > 0.15 * dist)
+		if (neighbourRes.streamLength != 0)
 		{
-			continue;
+			const struct CLRay* neigbourRay = &albedo[neighbourIndex];
+			const uint neighbourSide = neigbourRay->side;
+			const float neighbourDist = neigbourRay->distance;
+			if (neighbourSide != side || distance(dist, neighbourDist) > 0.15 * dist)
+			{
+				continue;
+			}
+
+			// use the world coordinate?
+			//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
+
+			//re-evaluate sum of weights with new phat
+			float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
+			ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
+			//ReWeighSumOfWeights(&neighbourRes, new_pHat, 32);
+
+			CombineReservoir(res, &neighbourRes, RandomFloat(seedptr));
 		}
-
-		// use the world coordinate?
-		//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
-
-		//re-evaluate sum of weights with new phat
-		float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
-		ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
-		//ReWeighSumOfWeights(&neighbourRes, new_pHat, 32);
-
-		CombineReservoir(res, &neighbourRes, RandomFloat(seedptr));
 	}
 
 	float pHat = evaluatePHat(lights, res->lightIndex, N, brdf, shadingPoint);
@@ -215,7 +221,8 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 }
 
 __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
-	__global struct CLRay* albedo, __constant struct RenderParams* params,
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo,
+	__constant struct RenderParams* params,
 	__global struct Light* lights,
 	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid,
@@ -232,7 +239,7 @@ __kernel void perPixelSpatialResampling(__global struct DebugInfo* debugInfo,
 	{
 		if (params->spatial)
 		{
-			_perPixelSpatialResampling(x, y, debugInfo, params, albedo, lights, &res, prevReservoirs);
+			_perPixelSpatialResampling(x, y, debugInfo, params, prevAlbedo, albedo, lights, &res, prevReservoirs);
 		}
 	}
 
@@ -316,6 +323,13 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 					color += incoming;
 				}
+				else
+				{
+					// discarded
+					res.adjustedWeight = 0;
+					res.sumOfWeights = 0;
+					prevReservoirs[x + y * SCRWIDTH] = res;
+				}
 			}
 	}
 
@@ -323,7 +337,8 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 }
 
 __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
-	__global struct CLRay* albedo, __constant struct RenderParams* params,
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo,
+	__constant struct RenderParams* params,
 	__read_only image3d_t grid,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
 )
@@ -341,6 +356,8 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	//uint3 hitVoxelCoords = GridCoordinatesFromHit(side, D, dist, params->E);
 	//uint voxel1 = Get(hitVoxelCoords.x, hitVoxelCoords.y, hitVoxelCoords.z, grid, BRICKPARAMS);
 
+	// no need to copy since we swap the current and previous albedo buffer every frame
+	//prevAlbedo[x + y * SCRWIDTH] = albedo[x + y * SCRWIDTH];
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	hit->voxelValue = voxel;
 	hit->side = side;
@@ -349,7 +366,9 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	hit->rayDirection = D;
 }
 
-__kernel void renderRIS(__global struct DebugInfo* debugInfo, __global struct CLRay* albedo, __global float4* frame, __constant struct RenderParams* params,
+__kernel void renderRIS(__global struct DebugInfo* debugInfo,
+	__global struct CLRay* prevAlbedo, __global struct CLRay* albedo,
+	__global float4* frame, __constant struct RenderParams* params,
 	__global struct Light* lights,
 	__global struct Reservoir* reservoirs, __global struct Reservoir* prevReservoirs,
 	__read_only image3d_t grid, __global float4* sky, __global const uint* blueNoise,
@@ -368,4 +387,6 @@ __kernel void renderRIS(__global struct DebugInfo* debugInfo, __global struct CL
 	// store pixel in linear color space, to be processed by finalize kernel for TAA
 	frame[x + y * SCRWIDTH] = pixel; // depth in w
 	reservoirs[x + y * SCRWIDTH] = prevReservoirs[x + y * SCRWIDTH];
+	reservoirs[x + y * SCRWIDTH].distance = hit->distance;
+	reservoirs[x + y * SCRWIDTH].side = hit->side;
 }

@@ -437,7 +437,7 @@ private:
 	Buffer* blueNoise = 0;				// blue noise data
 	Buffer* lightsBuffer = 0;
 	Buffer* reservoirBuffers[2] = { 0 };
-	Buffer* primaryHitBuffer = 0;
+	Buffer* primaryHitBuffer[2] = { 0 };
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
 	DebugInfo debugInfo;

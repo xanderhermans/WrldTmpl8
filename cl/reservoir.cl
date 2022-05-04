@@ -42,3 +42,10 @@ void AdjustWeight(struct Reservoir* _this, const float pHat)
 {
 	_this->adjustedWeight = _this->sumOfWeights / max(10e-6, pHat * _this->streamLength);
 }
+
+bool PickedIsDirty(__global struct Light* lights, struct Reservoir* _this)
+{
+	uint lightIndex = _this->lightIndex;
+	struct Light* light = &lights[lightIndex];
+	return light->dirty > 0;
+}

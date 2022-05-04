@@ -27,6 +27,7 @@ public:
 
 	void HandleControls(float deltaTime);
 	void PreRender();
+	void SetLight(uint x, uint y, uint z, uint color, uint strength);
 };
 
 } // namespace Tmpl8
