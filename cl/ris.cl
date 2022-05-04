@@ -352,12 +352,10 @@ __kernel void renderAlbedo(__global struct DebugInfo* debugInfo,
 	uint side = 0;
 	float dist = 0;
 	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
-	//float3 hit_position = D * dist + params->E;
-	//uint3 hitVoxelCoords = GridCoordinatesFromHit(side, D, dist, params->E);
-	//uint voxel1 = Get(hitVoxelCoords.x, hitVoxelCoords.y, hitVoxelCoords.z, grid, BRICKPARAMS);
-
+	
 	// no need to copy since we swap the current and previous albedo buffer every frame
 	//prevAlbedo[x + y * SCRWIDTH] = albedo[x + y * SCRWIDTH];
+	
 	struct CLRay* hit = &albedo[x + y * SCRWIDTH];
 	hit->voxelValue = voxel;
 	hit->side = side;
@@ -387,6 +385,4 @@ __kernel void renderRIS(__global struct DebugInfo* debugInfo,
 	// store pixel in linear color space, to be processed by finalize kernel for TAA
 	frame[x + y * SCRWIDTH] = pixel; // depth in w
 	reservoirs[x + y * SCRWIDTH] = prevReservoirs[x + y * SCRWIDTH];
-	reservoirs[x + y * SCRWIDTH].distance = hit->distance;
-	reservoirs[x + y * SCRWIDTH].side = hit->side;
 }

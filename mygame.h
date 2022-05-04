@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 
 namespace Tmpl8
 {
@@ -27,7 +28,13 @@ public:
 
 	void HandleControls(float deltaTime);
 	void PreRender();
-	void SetLight(uint x, uint y, uint z, uint color, uint strength);
+	void AddRandomLights(int numberOfLights);
+	void RemoveRandomLights(int numberOfLights);
+	void MoveLights();
+	void SetUpMovingLights(int numberOfMovingLights);
+
+	//wrapper for void(MyGame, int) fn
+	static void IntArgFunction(std::function<void(MyGame, int)> fn, MyGame g, std::string s, int defaultarg);
 };
 
 } // namespace Tmpl8

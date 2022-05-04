@@ -185,6 +185,8 @@ public:
 	RenderParams& GetRenderParams() { return params; }
 	DebugInfo& GetDebugInfo() { return debugInfo; }
 	cl_event& GetRenderDoneEventHandle() { return renderDone; }
+	cl_event& GetCommitDoneEventHandle() { return commitDone; }
+	cl_event& GetCopyDoneEventHandle() { return copyDone; }
 	Buffer* GetFrameBuffer() { return tmpFrame; }
 	Buffer* GetAccumulatorBuffer() { return accumulator; }
 	Buffer* GetLightsBuffer() { return lightsBuffer; }

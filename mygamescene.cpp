@@ -60,7 +60,7 @@ void DummyWorld(World& world)
 	}
 #endif
 
-#if 1 //RANDOM SMALL LIGHTS
+#if 0 //RANDOM SMALL LIGHTS
 	const int offset = 10;
 
 	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)

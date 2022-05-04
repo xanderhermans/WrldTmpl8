@@ -122,7 +122,6 @@ struct Light
 { 
 	uint position;
 	uint voxel;
-	uint dirty;
 };
 
 //#define LIGHTINDEXMASK 0x7fffffff
