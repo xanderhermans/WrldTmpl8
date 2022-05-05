@@ -101,6 +101,11 @@ void DummyWorld(World& world)
 #endif
 }
 
+void MyGameScene::ScatterLights(World& world, int numberOfLights, int numberOfBrickLights)
+{
+	
+}
+
 void MyGameScene::SaveWorld(std::string filename)
 {
 	filesystem::path path = filename;

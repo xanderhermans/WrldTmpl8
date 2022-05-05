@@ -1,5 +1,4 @@
 #pragma once
-#include <functional>
 
 namespace Tmpl8
 {
@@ -8,8 +7,9 @@ class MyGame : public Game
 {
 	void PrintDebug();
 	void PrintStats();
+	LightManager lightManager;
 public:
-	void SetupLightBuffers();
+	LightManager& GetLightManager() { return lightManager; }
 	void SetupReservoirBuffers();
 	// game flow methods
 	void Init();
@@ -28,13 +28,9 @@ public:
 
 	void HandleControls(float deltaTime);
 	void PreRender();
-	void AddRandomLights(int numberOfLights);
-	void RemoveRandomLights(int numberOfLights);
-	void MoveLights();
-	void SetUpMovingLights(int numberOfMovingLights);
 
 	//wrapper for void(MyGame, int) fn
-	static void IntArgFunction(std::function<void(MyGame, int)> fn, MyGame g, std::string s, int defaultarg);
+	static void IntArgFunction(std::function<void(MyGame&, int)> fn, MyGame& g, std::string s, int defaultarg);
 };
 
 } // namespace Tmpl8

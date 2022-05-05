@@ -12,6 +12,7 @@
       <Filter>template</Filter>
     </ClCompile>
     <ClCompile Include="mygamescene.cpp" />
+    <ClCompile Include="light_manager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">
@@ -40,6 +41,7 @@
       <Filter>template</Filter>
     </ClInclude>
     <ClInclude Include="mygamescene.h" />
+    <ClInclude Include="light_manager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="template\LICENSE">

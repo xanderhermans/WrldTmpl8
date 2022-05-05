@@ -1,10 +1,6 @@
 #include "precomp.h"
 #include "mygame.h"
 #include "mygamescene.h"
-#include <filesystem>
-#include <unordered_map>
-#include <unordered_set>
-#include <functional>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "lib/stb_image_write.h"
@@ -23,14 +19,7 @@ static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
 
 static unordered_map<string, void*> commands;
-static unordered_map<string, function<void(MyGame, string)>> functionCommands;
-static unordered_map<uint, uint> lightIndices;
-static unordered_map<uint, uint> defaultVoxel;
-static unordered_map<uint, uint4> movinglights;
-static bool lightsAreMoving = false;
-static bool discoLights = false;
-
-uint3 positionFromIteration(int3 center, uint& iteration, uint radius);
+static unordered_map<string, function<void(MyGame&, string)>> functionCommands;
 
 // -----------------------------------------------------------
 // Initialize the application
@@ -53,6 +42,7 @@ void MyGame::Init()
 	}
 
 	RenderParams& params = GetWorld()->GetRenderParams();
+	params.numberOfLights = 0;
 	params.accumulate = false;
 	params.spatial = useSpatialResampling;
 	params.temporal = useTemporalResampling;
@@ -68,11 +58,13 @@ void MyGame::Init()
 	commands.insert({ "temporalimportance", &params.numberOfMaxTemporalImportance });
 	commands.insert({ "spatial", &params.spatial });
 	commands.insert({ "temporal", &params.temporal });
-	functionCommands.insert({ "addlights", [](MyGame _1, string _2) {IntArgFunction([](MyGame g, int a) {g.AddRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "removelights", [](MyGame _1, string _2) {IntArgFunction([](MyGame g, int a) {g.RemoveRandomLights(a); }, _1, _2, 2500); } });
-	functionCommands.insert({ "movelightcount", [](MyGame _1, string _2) {IntArgFunction([](MyGame g, int a) {g.SetUpMovingLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().AddRandomLights(a); }, _1, _2, 2500); }});
+	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().RemoveRandomLights(a); }, _1, _2, 2500); } });
+	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().SetUpMovingLights(a); }, _1, _2, 2500); } });
 
-	SetupLightBuffers();
+	vector<Light> ls;
+	lightManager.FindLightsInWorld(ls);
+	lightManager.SetupBuffer(ls);
 	SetupReservoirBuffers();
 }
 
@@ -94,67 +86,6 @@ void MyGame::SetupReservoirBuffers()
 		prevReservoirbuffer = new Buffer(sizeof(Reservoir) / 4 * numberOfReservoirs, 0, new Reservoir[numberOfReservoirs]);
 		world.SetReservoirBuffer(prevReservoirbuffer, 1);
 	}
-}
-
-void MyGame::SetupLightBuffers()
-{
-	World& world = *GetWorld();
-
-	uint sizex = MAPWIDTH;
-	uint sizey = MAPHEIGHT;
-	uint sizez = MAPDEPTH;
-
-	vector<Light> lights;
-
-	for (uint y = 0; y < sizey; y++)
-	{
-		for (uint z = 0; z < sizez; z++)
-		{
-			for (uint x = 0; x < sizex; x++)
-			{
-				ushort c = world.Get(x, y, z);
-				bool isEmitter = EmitStrength(c) > 0;
-				if (isEmitter)
-				{
-					Light light;
-					light.position = x + z * sizex + y * sizex * sizez;
-					light.voxel = c;
-					lights.push_back(light);
-				}
-			}
-		}
-	}
-
-	uint numberOfLights = lights.size();
-	Buffer* lightbuffer = world.GetLightsBuffer();
-	uint lightbuffersize = max(numberOfLights, uint(10)) * 2;
-	if (!lightbuffer)
-	{
-		printf("Light buffer does not exist, creating.\n");
-		lightbuffer = new Buffer(sizeof(Light) / 4 * lightbuffersize, Buffer::DEFAULT, new Light[lightbuffersize]);
-		lightbuffer->ownData = true;
-	}
-	else if (lightbuffer->size < numberOfLights)
-	{
-		printf("Light buffer too small, resizing.\n");
-		delete lightbuffer;
-		lightbuffer = new Buffer(sizeof(Light) / 4 * lightbuffersize, 0, new Light[lightbuffersize]);
-		lightbuffer->ownData = true;
-	}
-
-	printf("Number of emitting voxels: %d\n", numberOfLights);
-
-	Light* lightsData = (Light*)lightbuffer->hostBuffer;
-	for (int i = 0; i < lights.size(); i++)
-	{
-		auto light = lights[i];
-		lightsData[i] = light;
-		lightIndices[light.position] = i;
-	}
-
-	world.GetRenderParams().numberOfLights = numberOfLights;
-	lightbuffer->CopyToDevice();
-	world.SetLightsBuffer(lightbuffer);
 }
 
 KeyHandler qHandler = { 0, 'Q' };
@@ -277,15 +208,15 @@ void MyGame::HandleControls(float deltaTime)
 
 	if (uHandler.IsTyped())
 	{
-		lightsAreMoving = !lightsAreMoving;
-		if (movinglights.size() < 1)
+		lightManager.lightsAreMoving = !lightManager.lightsAreMoving;
+		if (lightManager.MovingLightCount() < 1)
 		{
-			SetUpMovingLights(100);
+			lightManager.SetUpMovingLights(100);
 		}
 	}
 	if (oHandler.IsTyped())
 	{
-		discoLights = !discoLights;
+		lightManager.poppingLights = !lightManager.poppingLights;
 	}
 
 	if (lHandler.isPressed()) { PrintStats(); };
@@ -383,102 +314,14 @@ void MyGame::Tick(float deltaTime)
 	//PrintDebug();
 	//PrintStats();
 	DumpScreenBuffer();
-	if (lightsAreMoving)
+	if (lightManager.lightsAreMoving)
 	{
-		MoveLights();
+		lightManager.MoveLights();
 	}
-	if (discoLights)
+	if (lightManager.poppingLights)
 	{
-		const double frametime = 150;
-		static double lasttime = 0;
-
-		if (lasttime > frametime)
-		{
-			if (GetWorld()->GetRenderParams().numberOfLights >= 2500)
-			{
-				RemoveRandomLights(2500);
-				AddRandomLights(2500);
-			}
-			else
-			{
-				AddRandomLights(2500);
-			}
-			lasttime = 0;
-		}
-		else
-		{
-			lasttime += deltaTime;
-		}
+		lightManager.PopLights(deltaTime);
 	}
-}
-
-void MyGame::SetUpMovingLights(int _numberOfMovingLights)
-{
-	movinglights.clear();
-	RenderParams& renderparams = GetWorld()->GetRenderParams();
-	World& w = *GetWorld();
-	int numberOfMovingLights = min((uint)_numberOfMovingLights, renderparams.numberOfLights);
-	w.GetLightsBuffer()->CopyFromDevice();
-	Light* lights = reinterpret_cast<Light*> (w.GetLightsBuffer()->hostBuffer);
-
-	vector<uint> indices;
-	for (int i = 0; i < renderparams.numberOfLights; i++) indices.push_back(i);
-
-	for (int i = 0; i < numberOfMovingLights; i++)
-	{
-		int index = RandomFloat() * (indices.size() - 1);
-		uint lightIndex = indices[index];
-		Light light = lights[lightIndex];
-		const uint y = light.position / (MAPWIDTH * MAPDEPTH);
-		const uint z = (light.position / MAPWIDTH) % MAPDEPTH;
-		const uint x = light.position % MAPDEPTH;
-		movinglights.insert({ lightIndex, make_uint4(x, y, z, RandomUInt() % 1000) });
-		indices.erase(indices.begin() + index);
-	}
-	printf("%d lights registered for moving\n", movinglights.size());
-}
-
-void MyGame::MoveLights()
-{
-	World& w = *GetWorld();
-	w.GetLightsBuffer()->CopyFromDevice();
-	Light* lights = reinterpret_cast<Light*>(w.GetLightsBuffer()->hostBuffer);
-
-	for (auto& ml : movinglights)
-	{
-		uint index = ml.first;
-		int3 center = make_int3(make_uint3(ml.second));
-		uint& iteration = ml.second.w;
-
-		Light& l = lights[index];
-		uint3 pos = positionFromIteration(center, iteration, 15);
-
-		const uint oldy = l.position / (MAPWIDTH * MAPDEPTH);
-		const uint oldz = (l.position / MAPWIDTH) % MAPDEPTH;
-		const uint oldx = l.position % MAPDEPTH;
-		iteration = (iteration + 1) % 1000;
-		uint sizex = MAPWIDTH;
-		uint sizey = MAPHEIGHT;
-		uint sizez = MAPDEPTH;
-		uint lightposition = pos.x + pos.z * sizex + pos.y * sizex * sizez;
-		uint voxel = w.Get(pos.x, pos.y, pos.z);
-		if (EmitStrength(voxel) == 0)
-		{
-			defaultVoxel[lightposition] = voxel;
-		}
-		uint color = 0;
-		if (defaultVoxel.find(l.position) != defaultVoxel.end())
-		{
-			color = defaultVoxel[l.position];
-		}
-		w.Set(oldx, oldy, oldz, color);
-		w.Set(pos.x, pos.y, pos.z, l.voxel);
-		l.position = lightposition;
-	}
-
-	// spatial hides the incorrect temporal albedo artifacts
-	if (!w.GetRenderParams().spatial) w.GetRenderParams().restirtemporalframe = 0;
-	w.GetLightsBuffer()->CopyToDevice();
 }
 
 union convertor {
@@ -584,7 +427,7 @@ void saveScreenBuffer(const std::filesystem::path& filepath, uint32_t width, uin
 	}
 }
 
-void MyGame::IntArgFunction(function<void(MyGame, int)> fn, MyGame g, string s, int defaultarg)
+void MyGame::IntArgFunction(function<void(MyGame&, int)> fn, MyGame& g, string s, int defaultarg)
 {
 	int result;
 	if (s != "" && string_to <int>(s, result))
@@ -595,159 +438,4 @@ void MyGame::IntArgFunction(function<void(MyGame, int)> fn, MyGame g, string s, 
 	{
 		fn(g, defaultarg);
 	}
-}
-
-void MyGame::AddRandomLights(int _numberOfLights)
-{
-	World& w = *GetWorld();
-	RenderParams& params = w.GetRenderParams();
-
-	uint lightBufferSize = w.GetLightsBuffer()->size * 4 / sizeof(Light);
-	uint numberOfLights = _numberOfLights + params.numberOfLights;
-	Light* lights;
-	if (!w.GetLightsBuffer())
-	{
-		printf("Light buffer does not exist, creating.\n");
-		Buffer* buffer = new Buffer(sizeof(Light) / 4 * numberOfLights * 2, Buffer::DEFAULT, new Light[numberOfLights * 2]);
-		buffer->ownData = true;
-		lights = reinterpret_cast<Light*>(buffer->hostBuffer);
-		w.SetLightsBuffer(buffer);
-	}
-	else if (lightBufferSize < numberOfLights)
-	{
-		printf("Light buffer too small, resizing to %d.\n", numberOfLights * 2);
-
-		Buffer* buffer = new Buffer(sizeof(Light) / 4 * numberOfLights * 2, 0, new Light[numberOfLights * 2]);
-		buffer->ownData = true;
-
-		w.GetLightsBuffer()->CopyFromDevice();
-		lights = reinterpret_cast<Light*>(buffer->hostBuffer);
-		Light* _lights = reinterpret_cast<Light*>(w.GetLightsBuffer()->hostBuffer);
-
-		for (int i = 0; i < params.numberOfLights; i++)
-		{
-			lights[i] = _lights[i];
-		}
-
-		delete w.GetLightsBuffer();
-		w.SetLightsBuffer(buffer);
-	}
-	else
-	{
-		w.GetLightsBuffer()->CopyFromDevice();
-		lights = reinterpret_cast<Light*>(w.GetLightsBuffer()->hostBuffer);
-	}
-
-	uint sizex = MAPWIDTH;
-	uint sizey = MAPHEIGHT;
-	uint sizez = MAPDEPTH;
-	const int world_width = 256;
-	const int world_height = 128;
-	const int world_depth = 288;
-
-	for (int i = 0; i < _numberOfLights; i++)
-	{
-		uint x = RandomFloat() * world_width;
-		uint y = RandomFloat() * world_height;
-		uint z = RandomFloat() * world_depth;
-		uint c = (uint)(RandomFloat() * ((1 << 12) - 2) + 1) | (1 << 12);
-		uint index = x + z * sizex + y * sizex * sizez;
-		uint prev = w.Get(x, y, z);
-		if (EmitStrength(prev) == 0)
-		{
-			defaultVoxel[index] = prev;
-		}
-		w.Set(x, y, z, c);
-		Light l;
-		l.position = index;
-		l.voxel = c;
-		lights[params.numberOfLights + i] = l;
-	}
-
-	params.restirtemporalframe = 0;
-	params.numberOfLights = numberOfLights;
-	w.GetLightsBuffer()->CopyToDevice();
-}
-
-void MyGame::RemoveRandomLights(int _numberOfLights)
-{
-	World& w = *GetWorld();
-	RenderParams& params = w.GetRenderParams();
-
-	uint numberOfLights = params.numberOfLights - _numberOfLights;
-	if (!w.GetLightsBuffer())
-	{
-		printf("Light buffer does not exist.\n");
-		return;
-	}
-	if (params.numberOfLights < 1)
-	{
-		printf("No lights to remove.\n");
-		return;
-	}
-
-	vector<uint> indices;
-	for (int i = 0; i < params.numberOfLights; i++) indices.push_back(i);
-	unordered_set<uint> toRemove;
-	for (int i = 0; i < _numberOfLights; i++)
-	{
-		int index = RandomFloat() * (indices.size() - 1);
-		toRemove.insert(indices[index]);
-		indices.erase(indices.begin() + index);
-	}
-
-	w.GetLightsBuffer()->CopyFromDevice();
-	Light* lights = reinterpret_cast<Light*>(w.GetLightsBuffer()->hostBuffer);
-	uint lightBufferSize = w.GetLightsBuffer()->size * 4 / sizeof(Light);
-	Light* newlights = new Light[lightBufferSize];
-	int bufferi = 0;
-	for (int i = 0; i < params.numberOfLights; i++)
-	{
-		if (toRemove.find(i) == toRemove.end())
-		{
-			newlights[bufferi++] = lights[i];
-		}
-	}
-
-	for (const uint i : toRemove)
-	{
-		uint index = lights[i].position;
-		const uint y = index / (MAPWIDTH * MAPDEPTH);
-		const uint z = (index / MAPWIDTH) % MAPDEPTH;
-		const uint x = index % MAPDEPTH;
-		uint color = 0;
-		if (defaultVoxel.find(index) != defaultVoxel.end())
-		{
-			color = defaultVoxel[index];
-		}
-		w.Set(x, y, z, color);
-		if (movinglights.find(i) != movinglights.end())
-		{
-			movinglights.erase(i);
-		}
-	}
-
-	uint newLightBufferSize = (params.numberOfLights - _numberOfLights) * 2;
-	if (newLightBufferSize < lightBufferSize / 2)
-	{
-		printf("Resizing buffer to %d\n", newLightBufferSize);
-	}
-
-	w.GetLightsBuffer()->hostBuffer = reinterpret_cast<uint*>(newlights);
-	delete lights;
-
-	params.restirtemporalframe = 0;
-	params.numberOfLights = numberOfLights;
-	w.GetLightsBuffer()->CopyToDevice();
-}
-
-uint3 positionFromIteration(int3 center, uint& iteration, uint radius)
-{
-	float angle = (float)iteration / 100 * TWOPI;
-	float x1 = cos(angle) * radius;
-	float x2 = sin(angle) * radius;
-	int3 pos = make_int3(x1 + center.x, center.y, center.z + x2);
-	pos.x = max(0, pos.x);
-	pos.z = max(0, pos.z);
-	return make_uint3(pos);
 }

@@ -122,6 +122,7 @@
   </ItemDefinitionGroup>
   <!-- END Custom section -->
   <ItemGroup>
+    <ClCompile Include="light_manager.cpp" />
     <ClCompile Include="mygame.cpp" />
     <ClCompile Include="mygamescene.cpp" />
     <ClCompile Include="template\template.cpp">
@@ -139,6 +140,7 @@
   <ItemGroup>
     <ClInclude Include="cl\tools.cl" />
     <ClInclude Include="cl\trace.cl" />
+    <ClInclude Include="light_manager.h" />
     <ClInclude Include="mygame.h" />
     <ClInclude Include="mygamescene.h" />
     <ClInclude Include="template\bluenoise.h" />

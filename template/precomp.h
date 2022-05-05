@@ -1263,9 +1263,16 @@ public:
 };
 
 // voxel world engine
+#include <functional>
+#include <filesystem>
+#include <unordered_map>
+#include <unordered_set>
+#include <map>
+#include <set>
 #include "world.h"
 #include "worldapi.h"
 #include "world_to_obj.h"
+#include "light_manager.h"
 struct KeyHandler
 {
 	SHORT last = 0;
