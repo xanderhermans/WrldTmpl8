@@ -28,6 +28,7 @@ static unordered_map<uint, uint> lightIndices;
 static unordered_map<uint, uint> defaultVoxel;
 static unordered_map<uint, uint4> movinglights;
 static bool lightsAreMoving = false;
+static bool discoLights = false;
 
 uint3 positionFromIteration(int3 center, uint& iteration, uint radius);
 
@@ -178,6 +179,7 @@ KeyHandler lHandler = { 0, 'L' };
 KeyHandler xHandler = { 0, 'X' };
 KeyHandler inputKeyHandler = { 0, 'I' };
 KeyHandler uHandler = { 0, 'U' };
+KeyHandler oHandler = { 0, 'O' };
 void MyGame::HandleControls(float deltaTime)
 {
 	// free cam controls
@@ -233,6 +235,10 @@ void MyGame::HandleControls(float deltaTime)
 				{
 					ss << it.first << ", ";
 				}
+				for (auto& it : functionCommands)
+				{
+					ss << it.first << ", ";
+				}
 				printf("%s\n", ss.str().substr(0, ss.str().size() - 2).c_str());
 				success = true;
 			}
@@ -276,6 +282,10 @@ void MyGame::HandleControls(float deltaTime)
 		{
 			SetUpMovingLights(100);
 		}
+	}
+	if (oHandler.IsTyped())
+	{
+		discoLights = !discoLights;
 	}
 
 	if (lHandler.isPressed()) { PrintStats(); };
@@ -377,6 +387,29 @@ void MyGame::Tick(float deltaTime)
 	{
 		MoveLights();
 	}
+	if (discoLights)
+	{
+		const double frametime = 150;
+		static double lasttime = 0;
+
+		if (lasttime > frametime)
+		{
+			if (GetWorld()->GetRenderParams().numberOfLights >= 2500)
+			{
+				RemoveRandomLights(2500);
+				AddRandomLights(2500);
+			}
+			else
+			{
+				AddRandomLights(2500);
+			}
+			lasttime = 0;
+		}
+		else
+		{
+			lasttime += deltaTime;
+		}
+	}
 }
 
 void MyGame::SetUpMovingLights(int _numberOfMovingLights)
@@ -399,7 +432,7 @@ void MyGame::SetUpMovingLights(int _numberOfMovingLights)
 		const uint y = light.position / (MAPWIDTH * MAPDEPTH);
 		const uint z = (light.position / MAPWIDTH) % MAPDEPTH;
 		const uint x = light.position % MAPDEPTH;
-		movinglights.insert({ lightIndex, make_uint4(x, y, z, 0) });
+		movinglights.insert({ lightIndex, make_uint4(x, y, z, RandomUInt() % 1000) });
 		indices.erase(indices.begin() + index);
 	}
 	printf("%d lights registered for moving\n", movinglights.size());
@@ -443,6 +476,8 @@ void MyGame::MoveLights()
 		l.position = lightposition;
 	}
 
+	// spatial hides the incorrect temporal albedo artifacts
+	if (!w.GetRenderParams().spatial) w.GetRenderParams().restirtemporalframe = 0;
 	w.GetLightsBuffer()->CopyToDevice();
 }
 
