@@ -61,7 +61,7 @@
 // MIMIC SHADING AS IN GfxExp by Shocker-0x15
 #define GFXEXP 0
 
-#define VOXELSAREPOINTLIGHTS 0
+#define VOXELSAREPOINTLIGHTS 1
 
 // some useful color names
 #ifdef VOXEL8

@@ -298,7 +298,7 @@ void Tmpl8::LightManager::MoveLights()
 
 void Tmpl8::LightManager::PopLights(float deltaTime)
 {
-	const double frametime = 250;
+	const double frametime = 500;
 	static double lasttime = 0;
 
 	if (lasttime > frametime)
