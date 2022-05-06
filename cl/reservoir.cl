@@ -1,9 +1,3 @@
-struct Reservoir EmptyReservoir()
-{
-	struct Reservoir r = { 0.0, 0, 0, 0.0, 0 };
-	return r;
-}
-
 void UpdateReservoir(struct Reservoir* _this, const float weight, const uint index, const float r0)
 {
 	_this->streamLength += 1;

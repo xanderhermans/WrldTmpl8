@@ -42,6 +42,18 @@ void rayToCenterOfVoxelsAtCoord(const uint3 emitterVoxelCoords, const float3 sha
 	*dist = length(*R);
 }
 
+void rayToRandomPointOnVoxelAtCoord(const uint3 emitterVoxelCoords, const float3 shadingPoint, const int size,
+	float3* L, float3* R, float* dist, uint* seedptr, float* invProbability)
+{
+	float3 center = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
+
+	float3 pointOnVoxel = RandomPointOnVoxel(center, shadingPoint, size, seedptr, invProbability);
+
+	*R = pointOnVoxel - shadingPoint;
+	*L = normalize(*R);
+	*dist = length(*R);
+}
+
 bool isLightOccluded(const uint3 emitterVoxelCoords, const float3 shadingPoint,
 	const float3 L, const float3 R, const float dist,
 	__read_only image3d_t grid,
@@ -306,7 +318,16 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 
 				float3 L, R; float dist2;
 				const float3 shadingPointOffset = shadingPoint + 0.1 * N;
+				float weight = res.adjustedWeight;
+
+#if VOXELSAREPOINTLIGHTS
 				rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
+#else
+				float invProbability;
+				rayToRandomPointOnVoxelAtCoord(emitterVoxelCoords, shadingPointOffset, 1, &L, &R, &dist2, seedptr, &invProbability);
+				//weight *= invProbability; // need 1 more scaling factor (ndotl?)
+#endif
+
 				// if we hit the emitter we know nothing occluded it
 				if (!isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
 				{
@@ -318,7 +339,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 #endif
 
 					float distancesquared = max(dist2 * dist2, 10e-6);
-					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * res.adjustedWeight;
+					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * weight;
 					const float3 incoming = BRDF1 * directContribution;
 
 					color += incoming;

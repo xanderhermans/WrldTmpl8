@@ -1,4 +1,5 @@
 #include "template/common.h"
+#include "cl/reservoir.cl"
 #include "cl/trace.cl"
 #include "cl/tools.cl"
 
@@ -8,7 +9,6 @@
 #define BRICKPARAMS brick0, brick1, brick2, brick3
 #endif
 
-#include "cl/reservoir.cl"
 #include "cl/ris.cl"
 
 float4 render_whitted( const float2 screenPos, __constant struct RenderParams* params,

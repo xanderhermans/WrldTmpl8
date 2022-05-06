@@ -61,6 +61,8 @@
 // MIMIC SHADING AS IN GfxExp by Shocker-0x15
 #define GFXEXP 0
 
+#define VOXELSAREPOINTLIGHTS 0
+
 // some useful color names
 #ifdef VOXEL8
 #define BLACK		(1<<5)	// actually: dark red; black itself is transparent
@@ -145,6 +147,7 @@ struct DebugInfo
 	int counter;
 	float4 f1;
 	float4 f2;
+	float4 f3;
 	struct Reservoir res;
 	struct Reservoir res1;
 	struct Reservoir res2;

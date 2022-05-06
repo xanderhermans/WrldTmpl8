@@ -283,7 +283,7 @@ void MyGame::PrintDebug()
 	GetWorld()->GetDebugBuffer()->CopyFromDevice();
 	DebugInfo* debugInfo = reinterpret_cast<DebugInfo*>(GetWorld()->GetDebugBuffer()->GetHostPtr());
 	Reservoir res = debugInfo->res; Reservoir res1 = debugInfo->res1; Reservoir res2 = debugInfo->res2; Reservoir res3 = debugInfo->res3;
-	float4 f1 = debugInfo->f1; float4 f2 = debugInfo->f2;
+	float4 f1 = debugInfo->f1; float4 f2 = debugInfo->f2; float4 f3 = debugInfo->f3;
 	RenderParams params = GetWorld()->GetRenderParams();
 	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
 	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
@@ -292,6 +292,7 @@ void MyGame::PrintDebug()
 	//printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
 	//if (f1.x != f1.y) printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
 	//printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
+	//printf("res %f %f %f %f\n", f3.x, f3.y, f3.z, f3.w);
 	//printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
 	printf("\n");
