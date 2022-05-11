@@ -13,6 +13,7 @@ static int cursor_x = 0;
 static int cursor_y = 0;
 static int sample_radius = 0;
 static int __count = 0;
+static int lastImageIndex = 0;
 
 float energyInRaster(const float4* data, int width, int height)
 {
@@ -64,7 +65,7 @@ void MSE::Init()
 	for (auto img : imagebuffer)
 	{
 		float energy = energyInRaster(img->buffer, img->width, img->height);
-		cout << i++ << " " << energy << endl;
+		cout << i++ << " " << img->name << " " << energy << endl;
 	}
 }
 
@@ -124,6 +125,8 @@ KeyHandler qhandler = {0, 'Q'};
 KeyHandler ehandler = {0, 'E'};
 KeyHandler radiusp = { 0, 'X' };
 KeyHandler radiusm = { 0, 'Z' };
+KeyHandler rhandler = { 0, 'R' };
+KeyHandler thandler = { 0, 'T' };
 KeyHandler numhandlers[10] = {
 	{0, '0'},
 	{0, '1'},
@@ -146,6 +149,14 @@ void MSE::HandleControls(float deltaTime)
 	if (qhandler.IsTyped())
 	{
 		imageindex = imageindex - 1;
+	}
+	if (thandler.IsTyped())
+	{
+		lastImageIndex = imageindex;
+	}
+	if (rhandler.IsTyped())
+	{
+		imageindex = lastImageIndex;
 	}
 
 	for (int i = 0; i < 10; i++)
@@ -241,7 +252,7 @@ void MSE::Tick(float deltaTime)
 
 	float3 energy = energyAroundCoord(cursor_x, cursor_y, sample_radius, imagebuffer[imageindex]->buffer, imagebuffer[imageindex]->width, imagebuffer[imageindex]->height);
 	printf("                                                            \r");
-	printf("image_i:%d d:%d %d energy:%.3f cursor:%d %d:%.4f %.4f %.4f\r", imageindex, sample_radius * 2 + 1, __count, currentImageEnergy, cursor_x, cursor_y, energy.x, energy.y, energy.z);
+	printf("image name:%s i:%d d:%d %d energy:%.3f cursor:%d %d:%.4f %.4f %.4f\r", imagebuffer[imageindex]->name.c_str(), imageindex, sample_radius * 2 + 1, __count, currentImageEnergy, cursor_x, cursor_y, energy.x, energy.y, energy.z);
 	//printf("image_i:%d energy:%.3f cursor:%d %d\r", imageindex, currentImageEnergy, cursor_x, cursor_y);
 }
 
@@ -253,6 +264,8 @@ void Image::Load(std::filesystem::path path, Image& image)
 		printf("Error opening file %s\n", path.string().c_str());
 		return;
 	}
+
+	image.name = path.filename().string();
 
 	uint32_t width, height;
 	rf.read((char*)&width, sizeof(uint32_t));

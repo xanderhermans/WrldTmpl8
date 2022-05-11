@@ -11,51 +11,53 @@ void generateLightCandidate(const uint numberOfLights, float* probability, uint*
 	*probability = 1.0 / numberOfLights;
 }
 
-float evaluatePHat(
-	__global struct Light* lights, uint lightIndex, float3 N,
-	float3 brdf, float3 shadingPoint)
+void pointOnVoxelLight(struct Light* light, 
+	float3 shadingPoint, uint* seedptr,
+	float3* positionOnVoxel, float* invPositionProbability)
 {
-	struct Light* light = &lights[lightIndex];
+	const int sizeOfLight = 1;
 	// take middle of voxel
 	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
-	float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
+	const float3 center = convert_float3(emitterVoxelCoords) + (float3)(0.5 * sizeOfLight, 0.5 * sizeOfLight, 0.5 * sizeOfLight);
 
-	const uint emitterVoxel = light->voxel;
-	const float3 lightIntensity = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel);
+#if VOXELSAREPOINTLIGHTS == 1
+	*invPositionProbability = 1.0; 
+	*positionOnVoxel = center;
+#else
+	const float3 L = normalize(shadingPoint - center);
+	*positionOnVoxel = RandomPointOnVoxel(center, L, sizeOfLight, seedptr, invPositionProbability);
+#endif
+}
 
-	const float3 R = emitterVoxelCoordsf - shadingPoint;
+float evaluatePHatForPoint(const float3 pointOnLight, uint emitterVoxel, const float invPositionProbability, float3 N,
+	float3 brdf, float3 shadingPoint)
+{
+	const float3 R = pointOnLight - shadingPoint;
 	const float3 L = normalize(R);
+
 	const float NdotL = max(dot(N, L), 0.0);
 	const float distsquared = dot(R, R);
+
+	const float3 lightIntensity = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel) * invPositionProbability;
 
 	const float pHat = length((brdf * lightIntensity * NdotL) / distsquared);
 	return pHat;
 }
 
-void rayToCenterOfVoxelsAtCoord(const uint3 emitterVoxelCoords, const float3 shadingPoint,
-	float3* L, float3* R, float* dist)
+float evaluatePHat(
+	__global struct Light* lights, uint lightIndex, float3 N,
+	float3 brdf, float3 shadingPoint, uint* seedptr, float3* positionOnVoxel, float* invPositionProbability)
 {
-	float3 emitterVoxelCoordsf = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
-
-	*R = emitterVoxelCoordsf - shadingPoint;
-	*L = normalize(*R);
-	*dist = length(*R);
-}
-
-void rayToRandomPointOnVoxelAtCoord(const uint3 emitterVoxelCoords, const float3 shadingPoint, const int size,
-	float3* L, float3* R, float* dist, uint* seedptr, float* invProbability)
-{
-	float3 center = convert_float3(emitterVoxelCoords) + (float3)(0.5, 0.5, 0.5);
-
-	float3 pointOnVoxel = RandomPointOnVoxel(center, shadingPoint, size, seedptr, invProbability);
-
-	*R = pointOnVoxel - shadingPoint;
-	*L = normalize(*R);
-	*dist = length(*R);
+	struct Light* light = &lights[lightIndex];
+	pointOnVoxelLight(light, shadingPoint, seedptr, positionOnVoxel, invPositionProbability);
+	const uint emitterVoxel = light->voxel;
+	const float3 p = *positionOnVoxel;
+	const float prob = *invPositionProbability;
+	return evaluatePHatForPoint(p, emitterVoxel, prob, N, brdf, shadingPoint);
 }
 
 bool isLightOccluded(const uint3 emitterVoxelCoords, const float3 shadingPoint,
-	const float3 L, const float3 R, const float dist,
+	const float3 L, const float dist,
 	__read_only image3d_t grid,
 	__global const unsigned char* uberGrid, __global const PAYLOAD* brick0
 )
@@ -106,22 +108,23 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 			float p;
 			generateLightCandidate(numberOfLights, &p, &lightIndex, seedptr);
 
-			float pHat = evaluatePHat(lights, lightIndex, N, brdf, shadingPoint);
-			UpdateReservoir(&res, pHat / p, lightIndex, RandomFloat(seedptr));
+			float3 CoordOnVoxel; float invPositionProbability;
+			float pHat = evaluatePHat(lights, lightIndex, N, brdf, shadingPoint, seedptr, &CoordOnVoxel, &invPositionProbability);
+			UpdateReservoir(&res, pHat / p, lightIndex, RandomFloat(seedptr), CoordOnVoxel, invPositionProbability);
 		}
-
-		float pHat = evaluatePHat(lights, res.lightIndex, N, brdf, shadingPoint);
-		AdjustWeight(&res, pHat);
 
 		uint lightIndex = res.lightIndex;
 		struct Light* light = &lights[lightIndex];
+		float pHat = evaluatePHatForPoint(res.positionOnVoxel, light->voxel, res.invPositionProbability, N, brdf, shadingPoint);
+		AdjustWeight(&res, pHat);
 
 		uint3 emitterVoxelCoords = indexToCoordinates(light->position);
 
-		float3 L, R; float dist2;
 		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
-		rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
-		if (isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
+
+		float3 L = normalize(res.positionOnVoxel - shadingPointOffset);
+		float dist2;
+		if (isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, dist2, grid, uberGrid, brick0))
 		{
 			// discarded
 			res.adjustedWeight = 0;
@@ -142,7 +145,10 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 				{
 					struct Reservoir prevRes = prevReservoirs[prevxy.x + prevxy.y * SCRWIDTH];
 					const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);
-					float prev_pHat = evaluatePHat(lights, prevRes.lightIndex, N, brdf, shadingPoint);
+
+					uint prevLightIndex = prevRes.lightIndex;
+					struct Light* prevLight = &lights[prevLightIndex];
+					float prev_pHat = evaluatePHatForPoint(prevRes.positionOnVoxel, prevLight->voxel, prevRes.invPositionProbability, N, brdf, shadingPoint);
 
 					ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
 
@@ -220,7 +226,10 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 			//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
 
 			//re-evaluate sum of weights with new phat
-			float new_pHat = evaluatePHat(lights, neighbourRes.lightIndex, N, brdf, shadingPoint);
+			uint neighbourLightIndex = neighbourRes.lightIndex;
+			struct Light* neighbourLight = &lights[neighbourLightIndex];
+			float new_pHat = evaluatePHatForPoint(neighbourRes.positionOnVoxel, neighbourLight->voxel, neighbourRes.invPositionProbability, N, brdf, shadingPoint);
+
 			ReWeighSumOfWeights(&neighbourRes, new_pHat, neighbourRes.streamLength);
 			//ReWeighSumOfWeights(&neighbourRes, new_pHat, 32);
 
@@ -228,7 +237,9 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 		}
 	}
 
-	float pHat = evaluatePHat(lights, res->lightIndex, N, brdf, shadingPoint);
+	uint lightIndex = res->lightIndex;
+	struct Light* light = &lights[lightIndex];
+	float pHat = evaluatePHatForPoint(res->positionOnVoxel, light->voxel, res->invPositionProbability, N, brdf, shadingPoint);
 	AdjustWeight(res, pHat);
 }
 
@@ -316,20 +327,15 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 				struct Light light = lights[lightIndex];
 				uint3 emitterVoxelCoords = indexToCoordinates(light.position);
 
-				float3 L, R; float dist2;
 				const float3 shadingPointOffset = shadingPoint + 0.1 * N;
 				float weight = res.adjustedWeight;
 
-#if VOXELSAREPOINTLIGHTS
-				rayToCenterOfVoxelsAtCoord(emitterVoxelCoords, shadingPointOffset, &L, &R, &dist2);
-#else
-				float invProbability;
-				rayToRandomPointOnVoxelAtCoord(emitterVoxelCoords, shadingPointOffset, 1, &L, &R, &dist2, seedptr, &invProbability);
-				//weight *= invProbability; // need 1 more scaling factor (ndotl?)
-#endif
+				const float3 R = res.positionOnVoxel - shadingPointOffset;
+				const float3 L = normalize(R);
+				float dist2 = length(R);
 
 				// if we hit the emitter we know nothing occluded it
-				if (!isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, R, dist2, grid, uberGrid, brick0))
+				if (!isLightOccluded(emitterVoxelCoords, shadingPointOffset, L, dist2, grid, uberGrid, brick0))
 				{
 					const float NdotL = max(dot(N, L), 0.0);
 					uint emitterVoxel = light.voxel;
@@ -354,6 +360,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 			}
 	}
 
+	//if (x == 500 && y == 500) color = (float3)(1.0, 0.0, 0.0);
 	return (float4)(color, dist);
 }
 

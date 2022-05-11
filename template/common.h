@@ -134,7 +134,8 @@ struct Reservoir
 	uint streamLength; 
 	uint lightIndex;
 	float adjustedWeight;
-
+	float3 positionOnVoxel;
+	float invPositionProbability;
 	// fields below should be packed into the other fields later, 
 	// to make the struct fit in a cacheline
 	// use LIGHTINDEXMASK
@@ -148,6 +149,7 @@ struct DebugInfo
 	float4 f1;
 	float4 f2;
 	float4 f3;
+	float4 f4;
 	struct Reservoir res;
 	struct Reservoir res1;
 	struct Reservoir res2;

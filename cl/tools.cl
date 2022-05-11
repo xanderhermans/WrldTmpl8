@@ -263,7 +263,7 @@ float3 VoxelNormal(const uint side, const float3 D)
 
 int getRandomIndex(const int length, uint* seed)
 {
-	return max(0, (int)(RandomFloat(seed) * (length - 1)));
+	return clamp((int)(RandomFloat(seed) * length), 0, length - 1);
 }
 
 uint3 indexToCoordinates(const uint index)
@@ -325,41 +325,102 @@ bool IsInBounds(const int2 coords, const int2 _min, const int2 _max)
 	return coords.x >= _min.x && coords.y >= _min.y && coords.x < _max.x&& coords.y < _max.y;
 }
 
-// center of voxel(s), shadingPoint, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
-float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int size, uint* seedptr, float* invProbability)
+#define NUMBEROFVOXELSIDES 6
+// center of voxel(s), L, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
+float3 RandomPointOnVoxelSixSides(const float3 center, const float3 L, int size, uint* seedptr, float* invProbability)
 {
-	float ndotl[3];
-	float3 L = normalize(center - shadingPoint);
-	for (uint i = 0; i < 3; i++)
+	const float3 normals[NUMBEROFVOXELSIDES] =
+	{
+		(float3)(1.0, 0.0, 0.0),
+		(float3)(0.0, 1.0, 0.0),
+		(float3)(0.0, 0.0, 1.0),
+		(float3)(-1.0, 0.0, 0.0),
+		(float3)(0.0, -1.0, 0.0),
+		(float3)(0.0, 0.0, -1.0),
+	};
+	const int t_indices[NUMBEROFVOXELSIDES] =
+	{
+		1, 2, 0, 4, 5, 3
+	};
+	const int b_indices[NUMBEROFVOXELSIDES] =
+	{
+		2, 0, 1, 5, 3, 4
+	};
+	float ndotl[NUMBEROFVOXELSIDES];
+	struct Reservoir res = { 0.0, 0, 0, 0.0 };
+	for (int i = 0; i < NUMBEROFVOXELSIDES; i++)
+	{
+		float3 _N = normals[i];
+		float _ndotl = dot(_N, -L);
+		if (_ndotl >= 0.0)
+		{
+			ndotl[i] = clamp(_ndotl, 0.15, 1.0);
+
+			float r0 = RandomFloat(seedptr);
+			uint index = i;
+			float weight = ndotl[i];
+			UpdateReservoirSimple(&res, weight, index, r0);
+		}
+		else
+		{
+			ndotl[i] = clamp(_ndotl, 0.0, 1.0);
+		}
+	}
+
+	AdjustWeight(&res, ndotl[res.lightIndex]);
+	*invProbability = res.adjustedWeight;
+	float3 N = normals[res.lightIndex];
+	float3 T = normals[t_indices[res.lightIndex]];
+	float3 B = normals[b_indices[res.lightIndex]];
+
+	float r0 = RandomFloat(seedptr); //[0..1]
+	float r1 = RandomFloat(seedptr); //[0..1]
+	float _size = convert_float(size);
+	float3 surfacePoint = center + 0.5 * _size * N - 0.5 * _size * T - 0.5 * _size * B + r0 * _size * T + r1 * _size * B;
+	return surfacePoint;
+}
+
+#define HALFNUMBEROFVOXELSIDES 3
+// center of voxel(s), L, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
+float3 RandomPointOnVoxel(const float3 center, const float3 L, int size, uint* seedptr, float* invProbability)
+{
+	const float3 normals[HALFNUMBEROFVOXELSIDES] =
+	{
+		(float3)(1.0, 0.0, 0.0),
+		(float3)(0.0, 1.0, 0.0),
+		(float3)(0.0, 0.0, 1.0),
+	};
+	const int t_indices[HALFNUMBEROFVOXELSIDES] =
+	{
+		1, 2, 0
+	};
+	const int b_indices[HALFNUMBEROFVOXELSIDES] =
+	{
+		2, 0, 1
+	};
+	float ndotl[HALFNUMBEROFVOXELSIDES];
+	for (uint i = 0; i < HALFNUMBEROFVOXELSIDES; i++)
 	{
 		float3 _N = VoxelNormal(i, L);
-		ndotl[i] = max(0.0, dot(_N, -L));
+		float _ndotl = dot(_N, -L);
+		ndotl[i] = clamp(_ndotl, 0.15, 1.0);
 	}
 
 	struct Reservoir res = { 0.0, 0, 0, 0.0 };
-	for (uint i = 0; i < 3; i++)
+	for (uint i = 0; i < HALFNUMBEROFVOXELSIDES; i++)
 	{
 		float r0 = RandomFloat(seedptr);
 		uint index = i;
 		float weight = ndotl[i];
-		UpdateReservoir(&res, weight, index, r0);
+		UpdateReservoirSimple(&res, weight, index, r0);
 	}
 
 	AdjustWeight(&res, ndotl[res.lightIndex]);
-
-	uint chosen = res.lightIndex;
-	float3 N = VoxelNormal(chosen, L);
-	float _t[3] = { 0,0,0 };
-	float _b[3] = { 0,0,0 };
-	// simple method of creating orthogonal system (is not consistent left/right handed but does not matter)
-	uint chosen1 = (chosen + 1) % 3;
-	uint chosen2 = (chosen + 2) % 3;
-	_t[chosen1] = 1.0;
-	_b[chosen2] = 1.0;
-	float3 T = (float3)(_t[0], _t[1], _t[2]);
-	float3 B = (float3)(_b[0], _b[1], _b[2]);
-
 	*invProbability = res.adjustedWeight;
+
+	float3 N = normals[res.lightIndex];
+	float3 T = normals[t_indices[res.lightIndex]];
+	float3 B = normals[b_indices[res.lightIndex]];
 
 	float r0 = RandomFloat(seedptr);
 	float r1 = RandomFloat(seedptr);

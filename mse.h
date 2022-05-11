@@ -7,6 +7,7 @@ namespace Tmpl8
 	public:
 		float4* buffer = 0;
 		uint width = 0, height = 0;
+		std::string name = "";
 
 		static void Load(std::filesystem::path, Image& image);
 	};

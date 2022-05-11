@@ -1,11 +1,18 @@
-void UpdateReservoir(struct Reservoir* _this, const float weight, const uint index, const float r0)
+void UpdateReservoir(struct Reservoir* _this, const float weight, const uint index, const float r0, const float3 positionOnVoxel, const float invPositionProbability)
 {
 	_this->streamLength += 1;
 	_this->sumOfWeights += weight;
 	if (r0 < weight / _this->sumOfWeights)
 	{
 		_this->lightIndex = index;
+		_this->positionOnVoxel = positionOnVoxel;
+		_this->invPositionProbability = invPositionProbability;
 	}
+}
+
+void UpdateReservoirSimple(struct Reservoir* _this, const float weight, const uint index, const float r0)
+{
+	UpdateReservoir(_this, weight, index, r0, (float3)0, 0);
 }
 
 //void Resize(struct Reservoir* _this, const int length)
@@ -27,7 +34,7 @@ void CombineReservoir(struct Reservoir* _this, struct Reservoir* _that, const fl
 	uint streamLength1 = _this->streamLength;
 	uint streamLength2 = _that->streamLength;
 
-	UpdateReservoir(_this, _that->sumOfWeights, _that->lightIndex, r0);
+	UpdateReservoir(_this, _that->sumOfWeights, _that->lightIndex, r0, _that->positionOnVoxel, _that->invPositionProbability);
 	_this->streamLength = streamLength1 + streamLength2;
 	// Note: needs to be followed by AdjustWeight call.
 }
