@@ -303,6 +303,14 @@ bool Uint3equals(const uint3 v1, const uint3 v2)
 	return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
 }
 
+// v2.x is in [v1.x .. v1.x + size -1] and v2.y is in [v1.y .. v1.y + size -1] and v2.z is in [v1.z .. v1.z + size -1]
+bool Uint3CubeEquals(const uint3 v1, const uint3 v2, const uint size)
+{
+	return v1.x <= v2.x && v1.x + size > v2.x 
+		&& v1.y <= v2.y && v1.y + size > v2.y
+		&& v1.z <= v2.z && v1.z + size > v2.z;
+}
+
 float3 ShadingPoint(const struct CLRay* ray, const float3 O)
 {
 	return ray->rayDirection * ray->distance + O;
@@ -325,65 +333,11 @@ bool IsInBounds(const int2 coords, const int2 _min, const int2 _max)
 	return coords.x >= _min.x && coords.y >= _min.y && coords.x < _max.x&& coords.y < _max.y;
 }
 
-#define NUMBEROFVOXELSIDES 6
-// center of voxel(s), L, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
-float3 RandomPointOnVoxelSixSides(const float3 center, const float3 L, int size, uint* seedptr, float* invProbability)
-{
-	const float3 normals[NUMBEROFVOXELSIDES] =
-	{
-		(float3)(1.0, 0.0, 0.0),
-		(float3)(0.0, 1.0, 0.0),
-		(float3)(0.0, 0.0, 1.0),
-		(float3)(-1.0, 0.0, 0.0),
-		(float3)(0.0, -1.0, 0.0),
-		(float3)(0.0, 0.0, -1.0),
-	};
-	const int t_indices[NUMBEROFVOXELSIDES] =
-	{
-		1, 2, 0, 4, 5, 3
-	};
-	const int b_indices[NUMBEROFVOXELSIDES] =
-	{
-		2, 0, 1, 5, 3, 4
-	};
-	float ndotl[NUMBEROFVOXELSIDES];
-	struct Reservoir res = { 0.0, 0, 0, 0.0 };
-	for (int i = 0; i < NUMBEROFVOXELSIDES; i++)
-	{
-		float3 _N = normals[i];
-		float _ndotl = dot(_N, -L);
-		if (_ndotl >= 0.0)
-		{
-			ndotl[i] = clamp(_ndotl, 0.15, 1.0);
-
-			float r0 = RandomFloat(seedptr);
-			uint index = i;
-			float weight = ndotl[i];
-			UpdateReservoirSimple(&res, weight, index, r0);
-		}
-		else
-		{
-			ndotl[i] = clamp(_ndotl, 0.0, 1.0);
-		}
-	}
-
-	AdjustWeight(&res, ndotl[res.lightIndex]);
-	*invProbability = res.adjustedWeight;
-	float3 N = normals[res.lightIndex];
-	float3 T = normals[t_indices[res.lightIndex]];
-	float3 B = normals[b_indices[res.lightIndex]];
-
-	float r0 = RandomFloat(seedptr); //[0..1]
-	float r1 = RandomFloat(seedptr); //[0..1]
-	float _size = convert_float(size);
-	float3 surfacePoint = center + 0.5 * _size * N - 0.5 * _size * T - 0.5 * _size * B + r0 * _size * T + r1 * _size * B;
-	return surfacePoint;
-}
-
 #define HALFNUMBEROFVOXELSIDES 3
 // center of voxel(s), L, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
 float3 RandomPointOnVoxel(const float3 center, const float3 L, int size, uint* seedptr, float* invProbability)
 {
+	const float _size = convert_float(size);
 	const float3 normals[HALFNUMBEROFVOXELSIDES] =
 	{
 		(float3)(1.0, 0.0, 0.0),
@@ -402,7 +356,7 @@ float3 RandomPointOnVoxel(const float3 center, const float3 L, int size, uint* s
 	for (uint i = 0; i < HALFNUMBEROFVOXELSIDES; i++)
 	{
 		float3 _N = VoxelNormal(i, L);
-		float _ndotl = dot(_N, -L);
+		float _ndotl = dot(_N, L);
 		ndotl[i] = clamp(_ndotl, 0.15, 1.0);
 	}
 
@@ -416,15 +370,33 @@ float3 RandomPointOnVoxel(const float3 center, const float3 L, int size, uint* s
 	}
 
 	AdjustWeight(&res, ndotl[res.lightIndex]);
-	*invProbability = res.adjustedWeight;
+	// pdf of the angle from the shading point to the emitting surface
+	float weight = res.adjustedWeight;
+	// the pdf of the 3 sampled square emitting surfaces
+	weight *= _size * _size;
+	*invProbability = weight;
 
-	float3 N = normals[res.lightIndex];
+	float3 N = VoxelNormal(res.lightIndex, L);
 	float3 T = normals[t_indices[res.lightIndex]];
 	float3 B = normals[b_indices[res.lightIndex]];
 
 	float r0 = RandomFloat(seedptr);
 	float r1 = RandomFloat(seedptr);
-	float3 surfacePoint = center + 0.5 * N - 0.5 * T - 0.5 * B + r0 * T + r1 * B;
+	float3 surfacePoint = center + (0.5 * _size * N) - (0.5 * _size * T) - (0.5 * _size * B) + (r0 * _size * T) + (r1 * _size * B);
 
 	return surfacePoint;
+}
+
+float3 lightContribution(const uint voxelvalue, const uint size)
+{
+	float3 value = ToFloatRGB(voxelvalue) * EmitStrength(voxelvalue);
+#if VOXELSAREPOINTLIGHTS
+	// https://www.pbr-book.org/3ed-2018/Light_Sources/Point_Lights#fragment-PointLightMethodDefinitions-1
+	value *= 4 * PI;
+#else
+	// https://www.pbr-book.org/3ed-2018/Light_Sources/Area_Lights#DiffuseAreaLight::Lemit
+	float area = 6 * size * size;
+	value *= area * PI;
+#endif
+	return value;
 }

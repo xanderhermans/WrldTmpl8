@@ -29,19 +29,21 @@ void MyGame::Init()
 	string import_path = "scene_export/grid.vx";
 	string export_path = "scene_export/scene";
 
-	int loadedworld = MyGameScene::LoadWorld(*GetWorld(), import_path);
+	World& world = *GetWorld();
+
+	int loadedworld = MyGameScene::LoadWorld(world, import_path);
 	if (loadedworld < 0)
 	{
-		MyGameScene::CreateWorld(*GetWorld());
+		MyGameScene::CreateWorld(world);
 		MyGameScene::SaveWorld(import_path);
 	}
 
 	if (!filesystem::exists(export_path + ".obj"))
 	{
-		WorldToOBJ(GetWorld(), export_path);
+		WorldToOBJ(&world, export_path);
 	}
 
-	RenderParams& params = GetWorld()->GetRenderParams();
+	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
 	params.accumulate = false;
 	params.spatial = useSpatialResampling;
@@ -50,7 +52,7 @@ void MyGame::Init()
 	params.spatialRadius = SPATIALRADIUS;
 	params.numberOfCandidates = NUMBEROFCANDIDATES;
 	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
-	GetWorld()->GetDebugInfo().counter = 0;
+	world.GetDebugInfo().counter = 0;
 
 	commands.insert({ "spatialtaps", &params.spatialTaps });
 	commands.insert({ "spatialradius", &params.spatialRadius });
@@ -62,13 +64,22 @@ void MyGame::Init()
 	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().RemoveRandomLights(a); }, _1, _2, 2500); } });
 	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().SetUpMovingLights(a); }, _1, _2, 2500); } });
 
-	//GetWorld()->Set(112, 1, 32, WHITE | (1 << 12));
-	//GetWorld()->Set(120, 2, 32, WHITE | (1 << 12));
-	//GetWorld()->Set(128, 1, 32, WHITE | (1 << 12));
-	//GetWorld()->Set(136, 2, 32, WHITE | (1 << 12));
-	//GetWorld()->Set(142, 1, 32, WHITE | (1 << 12));
+	world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
+	world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(12 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(12 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(12 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+
+	world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	world.SetBrick(24 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
+	world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(20 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(20 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
+	world.Set(20 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
 
 	vector<Light> ls;
+	world.OptimizeBricks(); //important to recognize bricks
 	lightManager.FindLightsInWorld(ls);
 	lightManager.SetupBuffer(ls);
 	SetupReservoirBuffers();
@@ -257,7 +268,7 @@ void MyGame::HandleControls(float deltaTime)
 
 	if (spaceHandler.IsTyped())
 	{
-		renderparams.accumulate = !renderparams.accumulate;
+		renderparams.accumulate = (int)(!(bool)(renderparams.accumulate & 1));
 		dirty = true;
 	}
 	if (xHandler.isPressed())
@@ -295,15 +306,20 @@ void MyGame::PrintDebug()
 	Reservoir res = debugInfo->res; Reservoir res1 = debugInfo->res1; Reservoir res2 = debugInfo->res2; Reservoir res3 = debugInfo->res3;
 	float4 f1 = debugInfo->f1; float4 f2 = debugInfo->f2; float4 f3 = debugInfo->f3; float4 f4 = debugInfo->f4;
 	RenderParams params = GetWorld()->GetRenderParams();
-	//printf("res %f %d %d %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight);
-	//printf("res %f %d %d %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight);
-	//printf("res %f %d %d %f\n", res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight);
-	//printf("res %f %d %d %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight);
-	printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
-	//if (f1.x != f1.y) printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
-	printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
+	printf("res %f %d %d %f %f %f %f %f\n", res.sumOfWeights, res.streamLength, res.lightIndex, res.adjustedWeight, res.positionOnVoxel.x, res.positionOnVoxel.y, res.positionOnVoxel.z, res.invPositionProbability);
+	printf("res1 %f %d %d %f %f %f %f %f\n", res1.sumOfWeights, res1.streamLength, res1.lightIndex, res1.adjustedWeight, res1.positionOnVoxel.x, res1.positionOnVoxel.y, res1.positionOnVoxel.z, res1.invPositionProbability);
+	printf("res2 %f %d %d %f %f %f %f %f\n", res2.sumOfWeights, res2.streamLength, res2.lightIndex, res2.adjustedWeight, res2.positionOnVoxel.x, res2.positionOnVoxel.y, res2.positionOnVoxel.z, res2.invPositionProbability);
+	printf("res3 %f %d %d %f %f %f %f %f\n", res3.sumOfWeights, res3.streamLength, res3.lightIndex, res3.adjustedWeight, res3.positionOnVoxel.x, res3.positionOnVoxel.y, res3.positionOnVoxel.z, res3.invPositionProbability);
+	//if (f1.x != f2.x || f1.y != f2.y || f1.z != f2.z)
+	{
+		printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
+		printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
+	}
+	//printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
+	//printf("res %f %f %f %f\n", f2.x, f2.y, f2.z, f2.w);
 	printf("res %f %f %f %f\n", f3.x, f3.y, f3.z, f3.w);
 	printf("res %f %f %f %f\n", f4.x, f4.y, f4.z, f4.w);
+	//if (f1.x != f1.y) printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
 	//printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
 	printf("\n");
@@ -323,7 +339,7 @@ void MyGame::Tick(float deltaTime)
 	//printf("temporal frames %d\r", renderparams.numberOfMaxTemporalImportance);
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
-	//PrintDebug();
+	PrintDebug();
 	//PrintStats();
 	DumpScreenBuffer();
 	if (lightManager.lightsAreMoving)

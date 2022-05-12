@@ -21,26 +21,64 @@ void Tmpl8::LightManager::FindLightsInWorld(vector<Light>& ls)
 	uint sizez = MAPDEPTH;
 
 	ls.clear();
-	for (uint y = 0; y < sizey; y++)
+	uint* grid = world.GetGrid();
+	PAYLOAD* brick = world.GetBrick();
+	uint numberOfVoxels = 0;
+	uint numberOfBricks = 0;
+	for (uint by = 0; by < GRIDHEIGHT; by++)
 	{
-		for (uint z = 0; z < sizez; z++)
+		for (uint bz = 0; bz < GRIDDEPTH; bz++)
 		{
-			for (uint x = 0; x < sizex; x++)
+			for (uint bx = 0; bx < GRIDWIDTH; bx++)
 			{
-				ushort c = world.Get(x, y, z);
-				bool isEmitter = EmitStrength(c) > 0;
-				if (isEmitter)
+				ushort vox = 0;
+				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
+				const uint g = grid[cellIdx];
+				if ((g & 1) == 0 && (g >> 1) != 0) 
+				{ 
+					vox = g >> 1;
+					bool isEmitter = EmitStrength(vox) > 0;
+					if (isEmitter)
+					{
+						Light light;
+						light.position = bx * BRICKDIM + bz * BRICKDIM * sizex + by * BRICKDIM * sizex * sizez;
+						light.voxel = vox;
+						light.size = BRICKDIM;
+						ls.push_back(light);
+						numberOfBricks++;
+					}
+				}
+				else
 				{
-					Light light;
-					light.position = x + z * sizex + y * sizex * sizez;
-					light.voxel = c;
-					ls.push_back(light);
+					for (uint ly = 0; ly < BRICKDIM; ly++)
+					{
+						for (uint lz = 0; lz < BRICKDIM; lz++)
+						{
+							for (uint lx = 0; lx < BRICKDIM; lx++)
+							{
+								vox = brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
+								bool isEmitter = EmitStrength(vox) > 0;
+								if (isEmitter)
+								{
+									uint x = lx + bx * BRICKDIM;
+									uint y = ly + by * BRICKDIM;
+									uint z = lz + bz * BRICKDIM;
+									Light light;
+									light.position = x + z * sizex + y * sizex * sizez;
+									light.voxel = vox;
+									light.size = 1;
+									ls.push_back(light);
+									numberOfVoxels++;
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 
-	printf("Number of emitting voxels found in world: %d\n", ls.size());
+	printf("Number of emitting voxels found in world: %d, number of voxels: %d, number of bricks: %d\n", ls.size(), numberOfVoxels, numberOfBricks);
 }
 
 void Tmpl8::LightManager::SetupBuffer(vector<Light>& ls, int position)

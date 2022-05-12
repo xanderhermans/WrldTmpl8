@@ -54,6 +54,7 @@
 // Accumulator
 #define ACCUMULATOR 0
 #define STRATIFIEDACCUMULATING 1
+#define AA_ACCUMULATING 0
 
 // MSAA
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
@@ -61,7 +62,7 @@
 // MIMIC SHADING AS IN GfxExp by Shocker-0x15
 #define GFXEXP 0
 
-#define VOXELSAREPOINTLIGHTS 1
+#define VOXELSAREPOINTLIGHTS 0
 
 // some useful color names
 #ifdef VOXEL8
@@ -124,6 +125,7 @@ struct Light
 { 
 	uint position;
 	uint voxel;
+	uint size; //size in 1 dimension
 };
 
 //#define LIGHTINDEXMASK 0x7fffffff

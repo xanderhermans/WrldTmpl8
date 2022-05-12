@@ -117,8 +117,12 @@ float4 render_di( const float2 screenPos, __constant struct RenderParams* params
 	uint side = 0;
 	const int x = (int)screenPos.x, y = (int)screenPos.y;
 	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
-	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f; //AA
-	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
+	float screenx = screenPos.x; //AA
+	float screeny = screenPos.y;
+#if AA_ACCUMULATING
+	screenx += RandomFloat(&seed) - 0.5f;
+	screeny += RandomFloat(&seed) - 0.5f;
+#endif
 	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
 	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	const float skyLightScale = params->skyLightScale;
@@ -183,8 +187,12 @@ float4 render_di_gfxexp(const float2 screenPos, __constant struct RenderParams* 
 	uint side = 0;
 	const int x = (int)screenPos.x, y = (int)screenPos.y;
 	uint seed = WangHash(x * 171 + y * 1773 + params->R0);
-	float screenx = screenPos.x + RandomFloat(&seed) - 0.5f; //AA
-	float screeny = screenPos.y + RandomFloat(&seed) - 0.5f;
+	float screenx = screenPos.x; //AA
+	float screeny = screenPos.y;
+#if AA_ACCUMULATING
+	screenx += RandomFloat(&seed) - 0.5f;
+	screeny += RandomFloat(&seed) - 0.5f;
+#endif
 	const float3 D = GenerateCameraRay((float2)(screenx, screeny), params);
 	const uint voxel = TraceRay((float4)(params->E, 0), (float4)(D, 1), &dist, &side, grid, uberGrid, BRICKPARAMS, 999999 /* no cap needed */);
 	const float skyLightScale = params->skyLightScale;

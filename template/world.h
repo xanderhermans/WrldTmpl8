@@ -192,6 +192,8 @@ public:
 	Buffer* GetLightsBuffer() { return lightsBuffer; }
 	Buffer* GetDebugBuffer() { return debugBuffer; }
 	Buffer** GetReservoirsBuffer() { return reservoirBuffers; }
+	uint* GetGrid() { return grid; }
+	PAYLOAD* GetBrick() { return brick; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
 	void SetReservoirBuffer(Buffer* buffer, int index) { reservoirBuffers[index] = buffer; }
 	void Commit();
@@ -252,6 +254,19 @@ public:
 		// calculate the position of the voxel inside the brick
 		const uint lx = x & (BRICKDIM - 1), ly = y & (BRICKDIM - 1), lz = z & (BRICKDIM - 1);
 		return brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
+	}
+	__forceinline void SetBrick(const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */)
+	{
+		for (uint ly = 0; ly < BRICKDIM; ly++)
+		{
+			for (uint lz = 0; lz < BRICKDIM; lz++)
+			{
+				for (uint lx = 0; lx < BRICKDIM; lx++)
+				{
+					Set(lx + x, ly + y, lz + z, v);
+				}
+			}
+		}
 	}
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
