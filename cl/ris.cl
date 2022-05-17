@@ -22,15 +22,15 @@ void pointOnVoxelLight(struct Light* light,
 	const float3 center = convert_float3(emitterVoxelCoords) + (float3)(0.5 * sizeOfLight, 0.5 * sizeOfLight, 0.5 * sizeOfLight);
 
 #if VOXELSAREPOINTLIGHTS == 1
-	int innerSizeOfLight = sizeOfLight - 2;
-	int numberOfOutsideVoxels = sizeOfLight * sizeOfLight * sizeOfLight - innerSizeOfLight * innerSizeOfLight * innerSizeOfLight;
+	//int innerSizeOfLight = sizeOfLight - 2;
+	//int numberOfOutsideVoxels = sizeOfLight * sizeOfLight * sizeOfLight - innerSizeOfLight * innerSizeOfLight * innerSizeOfLight;
 	// the lights are all cube shaped so voxels that are not on the outside will never contribute and therefore have pdf = 0
-	*invPositionProbability = max(0.0, convert_float(numberOfOutsideVoxels));
-	//*invPositionProbability = 1;
+	//*invPositionProbability = max(0.0, convert_float(numberOfOutsideVoxels));
+	*invPositionProbability = 1;
 	*positionOnVoxel = center;
 #else
-	const float3 L = normalize(center - shadingPoint);
-	*positionOnVoxel = RandomPointOnVoxel(center, L, sizeOfLight, seedptr, invPositionProbability);
+	//const float3 L = normalize(center - shadingPoint);
+	*positionOnVoxel = RandomPointOnVoxel(center, shadingPoint, sizeOfLight, seedptr, invPositionProbability);
 #endif
 }
 
@@ -46,9 +46,11 @@ float evaluatePHat(const struct Light* light, const float3 pointOnLight,
 	const float distsquared = max(0.0, dot(R, R));
 
 	const uint emitterVoxel = light->voxel;
+	const float _size = convert_float(light->size);
+	const float area = _size * _size;
 	const float3 lightIntensity = ToFloatRGB(emitterVoxel) * EmitStrength(emitterVoxel);
 
-	const float pHat = length((brdf * lightIntensity * NdotL) / distsquared * invPositionProbability);
+	const float pHat = length((brdf * lightIntensity * NdotL) / distsquared * invPositionProbability * area);
 	//const float pHat = length((brdf * lightIntensity * NdotL) / distsquared);
 	return pHat;
 }
@@ -65,13 +67,6 @@ bool isLightOccluded(const struct Light* light, const float3 shadingPoint,
 	uint3 hitVoxelCoords = GridCoordinatesFromHit(*side, L, *dist, shadingPoint);
 	
 	const uint sizeOfLight = light->size;
-	if (x == 500 && y == 500)
-	{
-		debugInfo->f1.w = sizeOfLight;
-		debugInfo->f1.xyz = convert_float3(hitVoxelCoords);
-		debugInfo->f2.xyz = convert_float3(emitterVoxelCoords);
-		debugInfo->f2.w = convert_float(Uint3CubeEquals(emitterVoxelCoords, hitVoxelCoords, sizeOfLight));
-	}
 
 	// if we hit the emitter we know nothing occluded it
 	return !Uint3CubeEquals(emitterVoxelCoords, hitVoxelCoords, sizeOfLight);
@@ -183,8 +178,20 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 					struct Light* prevLight = &lights[prevLightIndex];
 
 					float prev_pHat = evaluatePHat(prevLight, prevRes.positionOnVoxel, prevRes.invPositionProbability, N, brdf, shadingPoint);
+					if (x == 500 && y == 500)
+					{
+						debugInfo->f2.x = prevRes.adjustedWeight;
+						debugInfo->f2.y = prevRes.invPositionProbability;
+						debugInfo->f2.z = prev_pHat / prevRes.invPositionProbability;
+						debugInfo->f1.x = prevRes.sumOfWeights;
+					}
 					ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
-
+					if (x == 500 && y == 500)
+					{
+						debugInfo->f1.y = prevRes.sumOfWeights;
+						debugInfo->f1.z = prev_pHat;
+						debugInfo->f1.w = prevStreamLength;
+					}
 					CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
 
 					// already calculated potential contribution. re-use.
@@ -396,7 +403,9 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 #endif
 
 					float distancesquared = max(dist, 10e-6);
-					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * weight;
+					const float _size = convert_float(light.size);
+					const float area = _size * _size;
+					const float3 directContribution = ((emitterColor * NdotL) / distancesquared) * weight * area;
 					const float3 incoming = BRDF1 * directContribution;
 
 					color += incoming;

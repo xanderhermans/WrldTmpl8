@@ -42,7 +42,7 @@
 
 // RIS
 #define RIS			1
-#define NUMBEROFCANDIDATES 32
+#define NUMBEROFCANDIDATES 128
 #define SPATIALRADIUS 30 // radius of pixel neighbour reservoirs which can be selected for spatial resampling
 #define SPATIALTAPS 5 // amount of pixel neighbour reservoirs that are selected for spatial resampling
 #define USESPATIAL false

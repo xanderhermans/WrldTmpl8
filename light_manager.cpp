@@ -172,6 +172,7 @@ void Tmpl8::LightManager::AddRandomLights(int _numberOfLights)
 		Light l;
 		l.position = index;
 		l.voxel = c;
+		l.size = 1;
 		ls.push_back(l);
 	}
 

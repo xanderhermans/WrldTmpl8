@@ -333,58 +333,80 @@ bool IsInBounds(const int2 coords, const int2 _min, const int2 _max)
 	return coords.x >= _min.x && coords.y >= _min.y && coords.x < _max.x&& coords.y < _max.y;
 }
 
-#define HALFNUMBEROFVOXELSIDES 3
-// center of voxel(s), L, size of voxel(s) 1 voxel is size 1, ptr to seed, inverse probability accompanying the point
-float3 RandomPointOnVoxel(const float3 center, const float3 L, int size, uint* seedptr, float* invProbability)
+//#define HALFNUMBEROFVOXELSIDES 3
+#define NUMBEROFVOXELSIDES 6
+// center of voxel(s), shading point, size of voxel(s) is the number of voxels in 1 dimension of the voxel cluster(Brick), ptr to seed, inverse probability for the point
+float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int size, uint* seedptr, float* invProbability)
 {
 	const float _size = convert_float(size);
-	const float3 normals[HALFNUMBEROFVOXELSIDES] =
+	const float3 normals[NUMBEROFVOXELSIDES] =
 	{
 		(float3)(1.0, 0.0, 0.0),
 		(float3)(0.0, 1.0, 0.0),
 		(float3)(0.0, 0.0, 1.0),
+		(float3)(-1.0, 0.0, 0.0),
+		(float3)(0.0, -1.0, 0.0),
+		(float3)(0.0, 0.0, -1.0),
 	};
-	const int t_indices[HALFNUMBEROFVOXELSIDES] =
+	const int t_indices[NUMBEROFVOXELSIDES] =
 	{
-		1, 2, 0
+		1, 2, 0, 4, 5, 3
 	};
-	const int b_indices[HALFNUMBEROFVOXELSIDES] =
+	const int b_indices[NUMBEROFVOXELSIDES] =
 	{
-		2, 0, 1
+		2, 0, 1, 5, 3 ,4
 	};
-	float ndotl[HALFNUMBEROFVOXELSIDES];
-	for (uint i = 0; i < HALFNUMBEROFVOXELSIDES; i++)
+	float ndotl[NUMBEROFVOXELSIDES];
+	float3 surfacePoints[NUMBEROFVOXELSIDES];
+	for (uint i = 0; i < NUMBEROFVOXELSIDES; i++)
 	{
-		float3 _N = VoxelNormal(i, L);
-		float _ndotl = dot(_N, L);
-		ndotl[i] = clamp(_ndotl, 0.15, 1.0);
+		float3 _N = normals[i];
+
+		float3 _T = normals[t_indices[i]];
+		float3 _B = normals[b_indices[i]];
+
+		float r0 = RandomFloat(seedptr);
+		float r1 = RandomFloat(seedptr);
+		float3 surfacePoint = center + (0.5 * _size * _N) - (0.5 * _size * _T) - (0.5 * _size * _B) + (r0 * _size * _T) + (r1 * _size * _B);
+		surfacePoints[i] = surfacePoint;
+		float3 L = normalize(surfacePoint - shadingPoint);
+
+		float _ndotl = dot(_N, -L);
+		//ndotl[i] = clamp(_ndotl, 0.15, 1.0); // biased importance sampling, no artifacts
+		//ndotl[i] = clamp(_ndotl, 0.5, 1.0); // biased importance sampling, no artifacts
+		//if (_ndotl > 0.0) ndotl[i] = 1.0; // this results in uniform sampling, no artifacts
+		//ndotl[i] = clamp(_ndotl, 0.0, 1.0);
+		ndotl[i] = _ndotl; // artifacts, does not converge when accumulating (2k spp)
 	}
 
 	struct Reservoir res = { 0.0, 0, 0, 0.0 };
-	for (uint i = 0; i < HALFNUMBEROFVOXELSIDES; i++)
+	for (uint i = 0; i < NUMBEROFVOXELSIDES; i++)
 	{
 		float r0 = RandomFloat(seedptr);
 		uint index = i;
 		float weight = ndotl[i];
-		UpdateReservoirSimple(&res, weight, index, r0);
+		if (weight > 0.0)
+		{
+			UpdateReservoirSimple(&res, weight, index, r0);
+		}
+		//UpdateReservoirSimple(&res, weight, index, r0);
 	}
 
 	AdjustWeight(&res, ndotl[res.lightIndex]);
 	// pdf of the angle from the shading point to the emitting surface
 	float weight = res.adjustedWeight;
 	// the pdf of the 3 sampled square emitting surfaces
-	weight *= _size * _size;
 	*invProbability = weight;
 
-	float3 N = VoxelNormal(res.lightIndex, L);
-	float3 T = normals[t_indices[res.lightIndex]];
-	float3 B = normals[b_indices[res.lightIndex]];
+	//float3 N = VoxelNormal(res.lightIndex, LtoCenter);
+	//float3 T = normals[t_indices[res.lightIndex]];
+	//float3 B = normals[b_indices[res.lightIndex]];
 
-	float r0 = RandomFloat(seedptr);
-	float r1 = RandomFloat(seedptr);
-	float3 surfacePoint = center + (0.5 * _size * N) - (0.5 * _size * T) - (0.5 * _size * B) + (r0 * _size * T) + (r1 * _size * B);
+	//float r0 = RandomFloat(seedptr);
+	//float r1 = RandomFloat(seedptr);
+	//float3 surfacePoint = center + (0.5 * _size * N) - (0.5 * _size * T) - (0.5 * _size * B) + (r0 * _size * T) + (r1 * _size * B);
 
-	return surfacePoint;
+	return surfacePoints[res.lightIndex];
 }
 
 float3 lightContribution(const uint voxelvalue, const uint size)
