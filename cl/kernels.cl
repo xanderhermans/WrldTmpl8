@@ -9,6 +9,8 @@
 #define BRICKPARAMS brick0, brick1, brick2, brick3
 #endif
 
+#include "cl/pHat.cl"
+#include "cl/spatialSampling.cl"
 #include "cl/ris.cl"
 
 float4 render_whitted( const float2 screenPos, __constant struct RenderParams* params,

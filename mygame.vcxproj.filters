@@ -59,6 +59,12 @@
     <None Include="cl\reservoir.cl">
       <Filter>template\cl</Filter>
     </None>
+    <None Include="cl\spatialSampling.cl">
+      <Filter>template\cl</Filter>
+    </None>
+    <None Include="cl\phat.cl">
+      <Filter>template\cl</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="template">

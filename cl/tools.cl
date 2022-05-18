@@ -1,5 +1,7 @@
 ﻿#define DEBUGCOLOR (float3)(1.0, 0.0, 1.0)
 #define DEBUGCOLOR2 (float3)(0.0, 1.0, 1.0)
+#define DEBUGX 500
+#define DEBUGY 500
 
 float SphericalTheta(const float3 v)
 {
@@ -304,6 +306,7 @@ bool Uint3equals(const uint3 v1, const uint3 v2)
 }
 
 // v2.x is in [v1.x .. v1.x + size -1] and v2.y is in [v1.y .. v1.y + size -1] and v2.z is in [v1.z .. v1.z + size -1]
+// simply put is v2 in the cube v1 to v1 + size.
 bool Uint3CubeEquals(const uint3 v1, const uint3 v2, const uint size)
 {
 	return v1.x <= v2.x && v1.x + size > v2.x 
@@ -336,9 +339,9 @@ bool IsInBounds(const int2 coords, const int2 _min, const int2 _max)
 //#define HALFNUMBEROFVOXELSIDES 3
 #define NUMBEROFVOXELSIDES 6
 // center of voxel(s), shading point, size of voxel(s) is the number of voxels in 1 dimension of the voxel cluster(Brick), ptr to seed, inverse probability for the point
-float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int size, uint* seedptr, float* invProbability)
+float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int emitterDimensionSize, uint* seedptr, float* invProbability, float3* Nlight)
 {
-	const float _size = convert_float(size);
+	const float size = convert_float(emitterDimensionSize);
 	const float3 normals[NUMBEROFVOXELSIDES] =
 	{
 		(float3)(1.0, 0.0, 0.0),
@@ -356,57 +359,59 @@ float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int si
 	{
 		2, 0, 1, 5, 3 ,4
 	};
-	float ndotl[NUMBEROFVOXELSIDES];
+	float solidAngles[NUMBEROFVOXELSIDES];
 	float3 surfacePoints[NUMBEROFVOXELSIDES];
+	float totalSolidAngle = 0;
 	for (uint i = 0; i < NUMBEROFVOXELSIDES; i++)
 	{
-		float3 _N = normals[i];
+		float3 N = normals[i];
 
-		float3 _T = normals[t_indices[i]];
-		float3 _B = normals[b_indices[i]];
+		float3 T = normals[t_indices[i]];
+		float3 B = normals[b_indices[i]];
 
 		float r0 = RandomFloat(seedptr);
 		float r1 = RandomFloat(seedptr);
-		float3 surfacePoint = center + (0.5 * _size * _N) - (0.5 * _size * _T) - (0.5 * _size * _B) + (r0 * _size * _T) + (r1 * _size * _B);
+		float3 surfacePoint = center + (0.5 * size * N) - (0.5 * size * T) - (0.5 * size * B) + (r0 * size * T) + (r1 * size * B);
+
+		float3 R = surfacePoint - shadingPoint;
+		float3 L = normalize(R);
+		float distsquared = dot(R, R);
+		float NlightDotL = dot(N, -L);
+		float area = size * size;
+		float solidAngle = NlightDotL * area / distsquared;
+
 		surfacePoints[i] = surfacePoint;
-		float3 L = normalize(surfacePoint - shadingPoint);
-
-		float _ndotl = dot(_N, -L);
-		//ndotl[i] = clamp(_ndotl, 0.15, 1.0); // biased importance sampling, no artifacts
-		//ndotl[i] = clamp(_ndotl, 0.5, 1.0); // biased importance sampling, no artifacts
-		//if (_ndotl > 0.0) ndotl[i] = 1.0; // this results in uniform sampling, no artifacts
-		//ndotl[i] = clamp(_ndotl, 0.0, 1.0);
-		ndotl[i] = _ndotl; // artifacts, does not converge when accumulating (2k spp)
+		solidAngles[i] = max(0.0, solidAngle);
+		totalSolidAngle += max(0.0, solidAngle);
 	}
 
-	struct Reservoir res = { 0.0, 0, 0, 0.0 };
-	for (uint i = 0; i < NUMBEROFVOXELSIDES; i++)
+	float pdf[NUMBEROFVOXELSIDES];
+	float cdf[NUMBEROFVOXELSIDES];
+	float r2 = RandomFloat(seedptr);
+	uint index = 0;
+	pdf[0] = solidAngles[0] / totalSolidAngle;
+	cdf[0] = pdf[0];
+	if (cdf[0] < r2)
 	{
-		float r0 = RandomFloat(seedptr);
-		uint index = i;
-		float weight = ndotl[i];
-		if (weight > 0.0)
+		for (uint i = 1; i < NUMBEROFVOXELSIDES; i++)
 		{
-			UpdateReservoirSimple(&res, weight, index, r0);
+			pdf[i] = solidAngles[i] / totalSolidAngle;
+			cdf[i] = cdf[i - 1] + pdf[i];
+			index = i;
+			if (cdf[i] >= r2)
+			{
+				break;
+			}
 		}
-		//UpdateReservoirSimple(&res, weight, index, r0);
 	}
 
-	AdjustWeight(&res, ndotl[res.lightIndex]);
 	// pdf of the angle from the shading point to the emitting surface
-	float weight = res.adjustedWeight;
-	// the pdf of the 3 sampled square emitting surfaces
+	float weight = 1.0 / pdf[index];
+	// the pdf of the sampled square emitting surfaces
 	*invProbability = weight;
 
-	//float3 N = VoxelNormal(res.lightIndex, LtoCenter);
-	//float3 T = normals[t_indices[res.lightIndex]];
-	//float3 B = normals[b_indices[res.lightIndex]];
-
-	//float r0 = RandomFloat(seedptr);
-	//float r1 = RandomFloat(seedptr);
-	//float3 surfacePoint = center + (0.5 * _size * N) - (0.5 * _size * T) - (0.5 * _size * B) + (r0 * _size * T) + (r1 * _size * B);
-
-	return surfacePoints[res.lightIndex];
+	*Nlight = normals[index];
+	return surfacePoints[index];
 }
 
 float3 lightContribution(const uint voxelvalue, const uint size)

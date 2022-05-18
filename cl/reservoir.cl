@@ -1,4 +1,4 @@
-void UpdateReservoir(struct Reservoir* _this, const float weight, const uint index, const float r0, const float3 positionOnVoxel, const float invPositionProbability)
+void UpdateReservoir(struct Reservoir* _this, const float weight, const float pHat, const uint index, const float r0, const float3 positionOnVoxel, const float invPositionProbability, const float3 Nlight)
 {
 	_this->streamLength += 1;
 	_this->sumOfWeights += weight;
@@ -7,24 +7,19 @@ void UpdateReservoir(struct Reservoir* _this, const float weight, const uint ind
 		_this->lightIndex = index;
 		_this->positionOnVoxel = positionOnVoxel;
 		_this->invPositionProbability = invPositionProbability;
+		_this->Nlight = Nlight;
+		_this->pHat = pHat;
 	}
 }
 
-void UpdateReservoirSimple(struct Reservoir* _this, const float weight, const uint index, const float r0)
+void UpdateReservoirSimple(struct Reservoir* _this, const float weight, const float pHat, const uint index, const float r0)
 {
-	UpdateReservoir(_this, weight, index, r0, (float3)0, 0);
+	UpdateReservoir(_this, weight, pHat, index, r0, (float3)0, 0, (float3)0);
 }
-
-//void Resize(struct Reservoir* _this, const int length)
-//{
-//	float avgWeight = _this->sumOfWeights / max(1.0, convert_float(_this->streamLength));
-//	_this->streamLength = length;
-//	_this->sumOfWeights = avgWeight * length;
-//}
 
 void ReWeighSumOfWeights(struct Reservoir* _this, const float newPHat, const uint streamLength)
 {
-	float sumOfWeights = _this->adjustedWeight * streamLength * newPHat;
+	float sumOfWeights = _this->pHat * streamLength * newPHat;
 	_this->sumOfWeights = sumOfWeights;
 	_this->streamLength = streamLength;
 }
@@ -34,7 +29,7 @@ void CombineReservoir(struct Reservoir* _this, struct Reservoir* _that, const fl
 	uint streamLength1 = _this->streamLength;
 	uint streamLength2 = _that->streamLength;
 
-	UpdateReservoir(_this, _that->sumOfWeights, _that->lightIndex, r0, _that->positionOnVoxel, _that->invPositionProbability);
+	UpdateReservoir(_this, _that->sumOfWeights, _that->pHat, _that->lightIndex, r0, _that->positionOnVoxel, _that->invPositionProbability, _that->Nlight);
 	_this->streamLength = streamLength1 + streamLength2;
 	// Note: needs to be followed by AdjustWeight call.
 }

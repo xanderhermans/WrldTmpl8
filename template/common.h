@@ -42,7 +42,7 @@
 
 // RIS
 #define RIS			1
-#define NUMBEROFCANDIDATES 128
+#define NUMBEROFCANDIDATES 32
 #define SPATIALRADIUS 30 // radius of pixel neighbour reservoirs which can be selected for spatial resampling
 #define SPATIALTAPS 5 // amount of pixel neighbour reservoirs that are selected for spatial resampling
 #define USESPATIAL false
@@ -128,8 +128,6 @@ struct Light
 	uint size; //size in 1 dimension
 };
 
-//#define LIGHTINDEXMASK 0x7fffffff
-//#define LIGHTTRACEDMASK 0x80000000
 struct Reservoir 
 {
 	float sumOfWeights; 
@@ -137,11 +135,9 @@ struct Reservoir
 	uint lightIndex;
 	float adjustedWeight;
 	float3 positionOnVoxel;
-	float invPositionProbability;
-	// fields below should be packed into the other fields later, 
-	// to make the struct fit in a cacheline
-	// use LIGHTINDEXMASK
-	//bool traced;
+	float invPositionProbability; // probability related to side of voxel choice
+	float3 Nlight;
+	float pHat;
 };
 
 // debugging
