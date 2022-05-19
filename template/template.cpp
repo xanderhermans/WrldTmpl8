@@ -364,7 +364,7 @@ void main()
 	glfwSetCharCallback( window, CharEventCallback );
 	// initialize GLAD
 	if (!gladLoadGLLoader( (GLADloadproc)glfwGetProcAddress )) FatalError( "gladLoadGLLoader failed." );
-	glfwSwapInterval( 0 );
+	glfwSwapInterval( 1 );
 	// prepare OpenGL state
 	glDisable( GL_DEPTH_TEST );
 	glDisable( GL_CULL_FACE );
@@ -433,7 +433,7 @@ void main()
 		// send the rendering result to the screen using OpenGL
 		if (frameNr++ > 1)
 		{
-			if (!game->autoRendering) renderTarget->CopyFrom( game->screen );
+			//if (!game->autoRendering) renderTarget->CopyFrom( game->screen );
 			shader->Bind();
 			shader->SetInputTexture( 0, "c", renderTarget );
 			DrawQuad();

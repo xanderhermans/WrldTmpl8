@@ -508,3 +508,18 @@ __kernel void updateUberGrid( const __global unsigned int* grid, __global unsign
 	// write result
 	uber[x + z * UBERWIDTH + y * UBERWIDTH * UBERHEIGHT] = empty ? 0 : 1;
 }
+
+__kernel void finalizeSimple(write_only image2d_t outimg, __global float4* pixels, __constant struct ViewerParams* params)
+{
+	const int x = get_global_id(0);
+	const int y = get_global_id(1);
+	if (x >= SCRWIDTH || y >= SCRHEIGHT) return;
+
+	float4 frameColor = pixels[x + y * SCRWIDTH];
+	if ((x == params->selectedX && (y > params->selectedY - 3 && y < params->selectedY + 3))
+		|| ((x > params->selectedX - 3 && x < params->selectedX + 3) && y == params->selectedY))
+	{
+		frameColor.xyz = DEBUGCOLOR;
+	}
+	write_imagef(outimg, (int2)(x, y), (float4)(frameColor.xyz, 1));
+}

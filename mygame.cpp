@@ -320,7 +320,7 @@ void MyGame::PrintDebug()
 	printf("res %f %f %f %f\n", f3.x, f3.y, f3.z, f3.w);
 	printf("res %f %f %f %f\n", f4.x, f4.y, f4.z, f4.w);
 	//if (f1.x != f1.y) printf("res %f %f %f %f\n", f1.x, f1.y, f1.z, f1.w);
-	//printf("%d\n", debugInfo->counter);
+	printf("%d\n", debugInfo->counter);
 	//printf("%d\n", GetWorld()->GetRenderParams().framecount);
 	printf("\n");
 	debugInfo->counter = 0;

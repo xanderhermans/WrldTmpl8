@@ -5,6 +5,7 @@ namespace Tmpl8
 	class Image
 	{
 	public:
+		Buffer* pixelBuffer;
 		float4* buffer = 0;
 		uint width = 0, height = 0;
 		std::string name = "";
@@ -28,7 +29,7 @@ public:
 	// data members
 	int2 mousePos;
 	void Render(Surface* surface);
-
+	void PreRender();
 	void HandleControls(float deltaTime);
 };
 

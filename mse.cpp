@@ -1,8 +1,6 @@
 #include "precomp.h"
-#include "mygame.h"
-#include "mygamescene.h"
-#include <filesystem>
 #include "mse.h"
+#include <filesystem>
 
 Game* CreateGame() { return new MSE(); }
 
@@ -14,6 +12,7 @@ static int cursor_y = 0;
 static int sample_radius = 0;
 static int __count = 0;
 static int lastImageIndex = 0;
+static ViewerParams viewerParams;
 
 float energyInRaster(const float4* data, int width, int height)
 {
@@ -34,7 +33,6 @@ float energyInRaster(const float4* data, int width, int height)
 // -----------------------------------------------------------
 void MSE::Init()
 {
-	Game::autoRendering = false;
 	Image* image;
 
 	using namespace filesystem;
@@ -67,62 +65,76 @@ void MSE::Init()
 		float energy = energyInRaster(img->buffer, img->width, img->height);
 		cout << i++ << " " << img->name << " " << energy << endl;
 	}
+
+	imageindex = imagebuffer.size() - 1;
+	Buffer* viewerParamsBuffer = new Buffer(sizeof(ViewerParams) / 4, 0, &viewerParams);
+	GetWorld()->SetViewerParamBuffer(viewerParamsBuffer);
+	GetWorld()->SetViewerPixelBuffer(imagebuffer[imageindex]->pixelBuffer);
+	GetWorld()->SetIsViewer(true);
+}
+
+void MSE::PreRender()
+{
+	GetWorld()->SetViewerPixelBuffer(imagebuffer[imageindex]->pixelBuffer);
+	viewerParams.selectedX = cursor_x;
+	viewerParams.selectedY = cursor_y;
 }
 
 void MSE::Render(Surface* surface)
 {
-    static Image* plottedImage = 0;
-    if (imagebuffer.size() > 0 /*&& plottedImage != imagebuffer[imageindex]*/)
-    {
-		plottedImage = imagebuffer[imageindex];
-		currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
-		if (plottedImage->width > surface->width || plottedImage->height > surface->height)
-		{
-			printf("Image is larger than surface. Implicit cropping happening.\n");
-		}
+	//   static Image* plottedImage = 0;
+	//   if (imagebuffer.size() > 0 /*&& plottedImage != imagebuffer[imageindex]*/)
+	//   {
+	   //	plottedImage = imagebuffer[imageindex];
+	   //	currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
+	   //	if (plottedImage->width > surface->width || plottedImage->height > surface->height)
+	   //	{
+	   //		printf("Image is larger than surface. Implicit cropping happening.\n");
+	   //	}
 
-        for (int y = 0; y < plottedImage->height; y++)
-        {
-            for (int x = 0; x < plottedImage->width; x++)
-            {
-                float4 val = plottedImage->buffer[x + y * plottedImage->width];
-				uint32_t c = ((std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 0) |
-					(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
-					(std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 16) |
-					255 << 24);
-					//(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
-                surface->Plot(x, y, c);
-            }
-        }
-    }
+	//       for (int y = 0; y < plottedImage->height; y++)
+	//       {
+	//           for (int x = 0; x < plottedImage->width; x++)
+	//           {
+	//               float4 val = plottedImage->buffer[x + y * plottedImage->width];
+	   //			uint32_t c = ((std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 0) |
+	   //				(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
+	   //				(std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 16) |
+	   //				255 << 24);
+	   //				//(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
+	//               surface->Plot(x, y, c);
+	//           }
+	//       }
+	//   }
 
-	uint cursor_color = 0xff00ff;
-	__count = 1;
-	{
-		int j = cursor_x;
-		int i = cursor_y;
-		surface->Plot(j, i, cursor_color);
-	}
-	for (int i = cursor_y - sample_radius; i < cursor_y + sample_radius; i++) {
-		for (int j = cursor_x; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j--) {
-			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
-			{
-				surface->Plot(j, i, cursor_color);
-				__count++;
-			}
-		}
-		for (int j = cursor_x + 1; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j++) {
-			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
-			{
-				surface->Plot(j, i, cursor_color);
-				__count++;
-			}
-		}
-	}
+	   //uint cursor_color = 0xff00ff;
+	   //__count = 1;
+	   //{
+	   //	int j = cursor_x;
+	   //	int i = cursor_y;
+	   //	surface->Plot(j, i, cursor_color);
+	   //}
+	   //for (int i = cursor_y - sample_radius; i < cursor_y + sample_radius; i++) {
+	   //	for (int j = cursor_x; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j--) {
+	   //		if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+	   //		{
+	   //			surface->Plot(j, i, cursor_color);
+	   //			__count++;
+	   //		}
+	   //	}
+	   //	for (int j = cursor_x + 1; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j++) {
+	   //		if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+	   //		{
+	   //			surface->Plot(j, i, cursor_color);
+	   //			__count++;
+	   //		}
+	   //	}
+	   //}
+
 }
 
-KeyHandler qhandler = {0, 'Q'};
-KeyHandler ehandler = {0, 'E'};
+KeyHandler qhandler = { 0, 'Q' };
+KeyHandler ehandler = { 0, 'E' };
 KeyHandler radiusp = { 0, 'X' };
 KeyHandler radiusm = { 0, 'Z' };
 KeyHandler rhandler = { 0, 'R' };
@@ -136,8 +148,8 @@ KeyHandler numhandlers[10] = {
 	{0, '5'},
 	{0, '6'},
 	{0, '7'},
-	{0, '8'}, 
-	{0, '9'}, 
+	{0, '8'},
+	{0, '9'},
 };
 void MSE::HandleControls(float deltaTime)
 {
@@ -209,11 +221,11 @@ float3 energyAroundCoord(int x, int y, int radius, float4* buff, int width, int 
 		energy_z += e.z;
 	}
 
-	for (int i = y - radius; i < y + radius; i++) 
+	for (int i = y - radius; i < y + radius; i++)
 	{
 		for (int j = x; (j - x) * (j - x) + (i - y) * (i - y) <= radius * radius; j--)
 		{
-			if (i >= 0 && i < SCRHEIGHT && j >=0 && j < SCRWIDTH)
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
 			{
 				float4 e = buff[j + i * width];
 				energy_x += e.x;
@@ -222,7 +234,7 @@ float3 energyAroundCoord(int x, int y, int radius, float4* buff, int width, int 
 				count++;
 			}
 		}
-		for (int j = x + 1; (j - x) * (j - x) + (i - y) * (i - y) <= radius * radius; j++) 
+		for (int j = x + 1; (j - x) * (j - x) + (i - y) * (i - y) <= radius * radius; j++)
 		{
 			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
 			{
@@ -273,9 +285,14 @@ void Image::Load(std::filesystem::path path, Image& image)
 
 	image.width = width;
 	image.height = height;
+	if (width != SCRWIDTH || height != SCRHEIGHT)
+	{
+		printf("ATTEMPTING TO LOAD IMAGE THAT HAS DIFFERENT SIZE THAN THE WINDOW!\n");
+	}
 	if (image.buffer == nullptr)
 	{
-		image.buffer = new float4[width * height];
+		image.pixelBuffer = new Buffer(4 * width * height, 0, new uint[4 * width * height]);
+		image.buffer = reinterpret_cast<float4*>(image.pixelBuffer->hostBuffer);
 	}
 
 	for (int y = 0; y < height; y++)
@@ -287,6 +304,8 @@ void Image::Load(std::filesystem::path path, Image& image)
 			image.buffer[x + y * width] = val;
 		}
 	}
+
+	image.pixelBuffer->CopyToDevice();
 
 	rf.close();
 	if (!rf.good()) {

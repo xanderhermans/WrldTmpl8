@@ -1,3 +1,5 @@
+
+
 void UpdateReservoir(struct Reservoir* _this, const float weight, const float pHat, const uint index, const float r0, const float3 positionOnVoxel, const float invPositionProbability, const float3 Nlight)
 {
 	_this->streamLength += 1;
@@ -22,6 +24,7 @@ void ReWeighSumOfWeights(struct Reservoir* _this, const float newPHat, const uin
 	float sumOfWeights = _this->adjustedWeight * streamLength * newPHat;
 	_this->sumOfWeights = sumOfWeights;
 	_this->streamLength = streamLength;
+	_this->pHat = newPHat;
 }
 
 void CombineReservoir(struct Reservoir* _this, struct Reservoir* _that, const float r0)

@@ -165,22 +165,22 @@ class World
 {
 public:
 	// constructor / destructor
-	World( const uint targetID );
+	World(const uint targetID);
 	~World();
 	// initialization
 	void Clear();
-	void Fill( const uint c );
+	void Fill(const uint c);
 	void DummyWorld();
-	void LoadSky( const char* filename, const float scale = 1.0f );
-	float3 SampleSky( const float3& D );
+	void LoadSky(const char* filename, const float scale = 1.0f);
+	float3 SampleSky(const float3& D);
 	void UpdateSkylights(); // updates the six skylight colors
 	void ForceSyncAllBricks();
 	void OptimizeBricks();
 	// camera
-	void SetCameraMatrix( const mat4& m ) { camMat = m; }
-	float3 GetCameraViewDir() { return make_float3( camMat[2], camMat[6], camMat[10] ); }
-	float3 GetCameraPos() { return make_float3( camMat[3], camMat[7], camMat[11] ); }
-	void SetCameraPos( const float3 P ) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
+	void SetCameraMatrix(const mat4& m) { camMat = m; }
+	float3 GetCameraViewDir() { return make_float3(camMat[2], camMat[6], camMat[10]); }
+	float3 GetCameraPos() { return make_float3(camMat[3], camMat[7], camMat[11]); }
+	void SetCameraPos(const float3 P) { camMat[3] = P.x, camMat[7] = P.y, camMat[11] = P.z; }
 	mat4& GetCameraMatrix() { return camMat; }
 	RenderParams& GetRenderParams() { return params; }
 	DebugInfo& GetDebugInfo() { return debugInfo; }
@@ -191,7 +191,14 @@ public:
 	Buffer* GetAccumulatorBuffer() { return accumulator; }
 	Buffer* GetLightsBuffer() { return lightsBuffer; }
 	Buffer* GetDebugBuffer() { return debugBuffer; }
+	void SetIsViewer(bool v) { viewer = v; }
+	bool IsViewer() { return viewer; }
 	Buffer** GetReservoirsBuffer() { return reservoirBuffers; }
+	void SetViewerParamBuffer(Buffer* s) { viewerParamsBuffer = s; }
+	void SetViewerPixelBuffer(Buffer* s) { viewerPixelBuffer = s; }
+	Buffer* GetScreenBuffer() { return screen; }
+	void SetScreenBuffer(Buffer* s) { screen = s; }
+	uint GetTextureId() { return targetTextureID; }
 	uint* GetGrid() { return grid; }
 	PAYLOAD* GetBrick() { return brick; }
 	void SetLightsBuffer(Buffer* buffer) { lightsBuffer = buffer; };
@@ -441,6 +448,7 @@ private:
 	BrickInfo* brickInfo = 0;			// maintenance data for bricks: zeroes, location
 	volatile inline static LONG trashHead = BRICKCOUNT;	// thrash circular buffer tail
 	volatile inline static LONG trashTail = 0;	// thrash circular buffer tail
+	bool viewer = false;
 	uint* trash = 0;					// indices of recycled bricks
 	Buffer* screen = 0;					// OpenCL buffer that encapsulates the target OpenGL texture
 	uint targetTextureID = 0;			// OpenGL render target
@@ -455,12 +463,15 @@ private:
 	Buffer* lightsBuffer = 0;
 	Buffer* reservoirBuffers[2] = { 0 };
 	Buffer* primaryHitBuffer[2] = { 0 };
+	Buffer* viewerParamsBuffer;
+	Buffer* viewerPixelBuffer;
 	int2 skySize;						// size of the skydome bitmap
 	RenderParams params;				// CPU-side copy of the renderer parameters
 	DebugInfo debugInfo;
 	Kernel* albedoRender;
 	Kernel* perPixelLightSampling;
 	Kernel* spatialResampling;
+	Kernel* finalizeSimple;
 	Kernel* currentRenderer;
 	Kernel* committer;					// render kernel and commit kernel
 	Kernel* finalizer, * unsharpen;		// TAA finalization kernels

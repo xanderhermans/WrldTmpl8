@@ -121,6 +121,7 @@ World::World(const uint targetID)
 	batchToVoidTracer = new Kernel(kernelfile, "traceBatchToVoid");
 	perPixelLightSampling = new Kernel(kernelfile, "perPixelInitialSampling");
 	spatialResampling = new Kernel(kernelfile, "perPixelSpatialResampling");
+	finalizeSimple = new Kernel(kernelfile, "finalizeSimple");
 #if MORTONBRICKS == 1
 	encodeBricks = new Kernel(kernelfile, "encodeBricks");
 #endif
@@ -1535,136 +1536,148 @@ void World::Render()
 		// get render parameters to GPU and invoke kernel asynchronously
 		paramBuffer->CopyToDevice(false);
 
-		static int reservoirBufferOutIndex = 0;
-		static int reservoirBufferInIndex = 1;
-		int initialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
-		int initialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
-		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
-		int spatialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
-		int spatialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
-		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
-		int shadingReservoirBufferOutIndex = reservoirBufferOutIndex;
-		int shadingReservoirBufferInIndex = reservoirBufferInIndex;
-		swap(reservoirBufferOutIndex, reservoirBufferInIndex);
-
-		static int primaryHitBufferCurrent = 0;
-		static int primaryHitBufferPrevious = 1;
-		swap(primaryHitBufferCurrent, primaryHitBufferPrevious);
-
 		if (!screen)
 		{
 			screen = new Buffer(targetTextureID, Buffer::TARGET);
 		}
 
-		int renderer_arg_i = 0;
+		if (viewer)
+		{
+			viewerParamsBuffer->CopyToDevice();
+			finalizeSimple->SetArgument(0, screen);
+			finalizeSimple->SetArgument(1, viewerPixelBuffer);
+			finalizeSimple->SetArgument(2, viewerParamsBuffer);
+			finalizeSimple->Run(screen, make_int2(8, 16), 0, &renderDone);
+			viewerParamsBuffer->CopyFromDevice();
+		}
+		else
+		{
+			static int reservoirBufferOutIndex = 0;
+			static int reservoirBufferInIndex = 1;
+			int initialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
+			int initialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
+			swap(reservoirBufferOutIndex, reservoirBufferInIndex);
+			int spatialSamplingReservoirBufferOutIndex = reservoirBufferOutIndex;
+			int spatialSamplingReservoirBufferInIndex = reservoirBufferInIndex;
+			swap(reservoirBufferOutIndex, reservoirBufferInIndex);
+			int shadingReservoirBufferOutIndex = reservoirBufferOutIndex;
+			int shadingReservoirBufferInIndex = reservoirBufferInIndex;
+			swap(reservoirBufferOutIndex, reservoirBufferInIndex);
+
+			static int primaryHitBufferCurrent = 0;
+			static int primaryHitBufferPrevious = 1;
+			swap(primaryHitBufferCurrent, primaryHitBufferPrevious);
+
+			int renderer_arg_i = 0;
 #if ACCUMULATOR == 1
-		currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 #elif TAA == 1
-		currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 #elif RIS == 1
-		currentRenderer->SetArgument(renderer_arg_i++, debugBuffer);
-		currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer[primaryHitBufferPrevious]);
-		currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer[primaryHitBufferCurrent]);
-		currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
+			currentRenderer->SetArgument(renderer_arg_i++, debugBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer[primaryHitBufferPrevious]);
+			currentRenderer->SetArgument(renderer_arg_i++, primaryHitBuffer[primaryHitBufferCurrent]);
+			currentRenderer->SetArgument(renderer_arg_i++, tmpFrame);
 #else
-		currentRenderer->SetArgument(renderer_arg_i++, screen);
+			currentRenderer->SetArgument(renderer_arg_i++, screen);
 #endif
 
-		currentRenderer->SetArgument(renderer_arg_i++, paramBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, paramBuffer);
 #if RIS == 1
-		currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer); 
-		currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferOutIndex]); //write
-		currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
+			currentRenderer->SetArgument(renderer_arg_i++, lightsBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferOutIndex]); //write
+			currentRenderer->SetArgument(renderer_arg_i++, reservoirBuffers[shadingReservoirBufferInIndex]); //read
 
 #endif
-		currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
-		currentRenderer->SetArgument(renderer_arg_i++, sky);
-		currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
-		currentRenderer->SetArgument(renderer_arg_i++, &uberGrid);
+			currentRenderer->SetArgument(renderer_arg_i++, &gridMap);
+			currentRenderer->SetArgument(renderer_arg_i++, sky);
+			currentRenderer->SetArgument(renderer_arg_i++, blueNoise);
+			currentRenderer->SetArgument(renderer_arg_i++, &uberGrid);
 
 #if ONEBRICKBUFFER == 1
-		currentRenderer->SetArgument(renderer_arg_i++, brickBuffer);
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer);
 #else
-		currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[0]);
-		currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[1]);
-		currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[2]);
-		currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[3]);
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[0]);
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[1]);
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[2]);
+			currentRenderer->SetArgument(renderer_arg_i++, brickBuffer[3]);
 #endif
 
 #if RIS == 1
-		int albedoargi = 0;
-		albedoRender->SetArgument(albedoargi++, debugBuffer);
-		albedoRender->SetArgument(albedoargi++, primaryHitBuffer[primaryHitBufferPrevious]);
-		albedoRender->SetArgument(albedoargi++, primaryHitBuffer[primaryHitBufferCurrent]);
-		albedoRender->SetArgument(albedoargi++, paramBuffer);
-		albedoRender->SetArgument(albedoargi++, &gridMap);
-		albedoRender->SetArgument(albedoargi++, &uberGrid);
-		albedoRender->SetArgument(albedoargi++, brickBuffer);
-		albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			int albedoargi = 0;
+			albedoRender->SetArgument(albedoargi++, debugBuffer);
+			albedoRender->SetArgument(albedoargi++, primaryHitBuffer[primaryHitBufferPrevious]);
+			albedoRender->SetArgument(albedoargi++, primaryHitBuffer[primaryHitBufferCurrent]);
+			albedoRender->SetArgument(albedoargi++, paramBuffer);
+			albedoRender->SetArgument(albedoargi++, &gridMap);
+			albedoRender->SetArgument(albedoargi++, &uberGrid);
+			albedoRender->SetArgument(albedoargi++, brickBuffer);
+			albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		int perpixellighti = 0;
-		perPixelLightSampling->SetArgument(perpixellighti++, debugBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer[primaryHitBufferPrevious]);
-		perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer[primaryHitBufferCurrent]);
-		perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferOutIndex]); //write
-		perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferInIndex]); //read
-		perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
-		perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
-		perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
-		perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			int perpixellighti = 0;
+			perPixelLightSampling->SetArgument(perpixellighti++, debugBuffer);
+			perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer[primaryHitBufferPrevious]);
+			perPixelLightSampling->SetArgument(perpixellighti++, primaryHitBuffer[primaryHitBufferCurrent]);
+			perPixelLightSampling->SetArgument(perpixellighti++, paramBuffer);
+			perPixelLightSampling->SetArgument(perpixellighti++, lightsBuffer);
+			perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferOutIndex]); //write
+			perPixelLightSampling->SetArgument(perpixellighti++, reservoirBuffers[initialSamplingReservoirBufferInIndex]); //read
+			perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
+			perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
+			perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
+			perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		int spatialRisi = 0;
-		spatialResampling->SetArgument(spatialRisi++, debugBuffer);
-		spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer[primaryHitBufferPrevious]);
-		spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer[primaryHitBufferCurrent]);
-		spatialResampling->SetArgument(spatialRisi++, paramBuffer);
-		spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
-		// swap prev and current so prevReservoirBuffer will be written to as current
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferOutIndex]); //write
-		spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferInIndex]); //read
-		spatialResampling->SetArgument(spatialRisi++, &gridMap);
-		spatialResampling->SetArgument(spatialRisi++, &uberGrid);
-		spatialResampling->SetArgument(spatialRisi++, brickBuffer);
-		spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			int spatialRisi = 0;
+			spatialResampling->SetArgument(spatialRisi++, debugBuffer);
+			spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer[primaryHitBufferPrevious]);
+			spatialResampling->SetArgument(spatialRisi++, primaryHitBuffer[primaryHitBufferCurrent]);
+			spatialResampling->SetArgument(spatialRisi++, paramBuffer);
+			spatialResampling->SetArgument(spatialRisi++, lightsBuffer);
+			// swap prev and current so prevReservoirBuffer will be written to as current
+			spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferOutIndex]); //write
+			spatialResampling->SetArgument(spatialRisi++, reservoirBuffers[spatialSamplingReservoirBufferInIndex]); //read
+			spatialResampling->SetArgument(spatialRisi++, &gridMap);
+			spatialResampling->SetArgument(spatialRisi++, &uberGrid);
+			spatialResampling->SetArgument(spatialRisi++, brickBuffer);
+			spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
 
-		int finalizerargi = 0;
-		accumulatorFinalizer->SetArgument(finalizerargi++, screen);
-		accumulatorFinalizer->SetArgument(finalizerargi++, tmpFrame);
-		accumulatorFinalizer->SetArgument(finalizerargi++, accumulator);
-		accumulatorFinalizer->SetArgument(finalizerargi++, paramBuffer);
-		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+			int finalizerargi = 0;
+			accumulatorFinalizer->SetArgument(finalizerargi++, screen);
+			accumulatorFinalizer->SetArgument(finalizerargi++, tmpFrame);
+			accumulatorFinalizer->SetArgument(finalizerargi++, accumulator);
+			accumulatorFinalizer->SetArgument(finalizerargi++, paramBuffer);
+			accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
 #elif ACCUMULATOR == 1
-		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
-		accumulatorFinalizer->SetArgument(0, screen);
-		accumulatorFinalizer->SetArgument(1, tmpFrame);
-		accumulatorFinalizer->SetArgument(2, accumulator);
-		accumulatorFinalizer->SetArgument(3, paramBuffer);
-		accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
+			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			accumulatorFinalizer->SetArgument(0, screen);
+			accumulatorFinalizer->SetArgument(1, tmpFrame);
+			accumulatorFinalizer->SetArgument(2, accumulator);
+			accumulatorFinalizer->SetArgument(3, paramBuffer);
+			accumulatorFinalizer->Run(screen, make_int2(8, 16), 0, &renderDone);
 #elif TAA == 1
-		static int histIn = 0, histOut = 1;
-		// renderer->Run( screen, make_int2( 8, 16 ) );
-		currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
-		finalizer->SetArgument(0, historyTAA[histIn]);
-		finalizer->SetArgument(1, historyTAA[histOut]);
-		finalizer->SetArgument(2, tmpFrame);
-		finalizer->SetArgument(3, paramBuffer);
-		finalizer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
-		unsharpen->SetArgument(0, screen);
-		unsharpen->SetArgument(1, historyTAA[histOut]);
-		unsharpen->Run(screen, make_int2(8, 16), 0, &renderDone);
-		// swap
-		swap(histIn, histOut);
+			static int histIn = 0, histOut = 1;
+			// renderer->Run( screen, make_int2( 8, 16 ) );
+			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			finalizer->SetArgument(0, historyTAA[histIn]);
+			finalizer->SetArgument(1, historyTAA[histOut]);
+			finalizer->SetArgument(2, tmpFrame);
+			finalizer->SetArgument(3, paramBuffer);
+			finalizer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			unsharpen->SetArgument(0, screen);
+			unsharpen->SetArgument(1, historyTAA[histOut]);
+			unsharpen->Run(screen, make_int2(8, 16), 0, &renderDone);
+			// swap
+			swap(histIn, histOut);
 #else
-		currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
+			currentRenderer->Run(screen, make_int2(8, 16), 0, &renderDone);
 #endif
 
-		params.frame = params.frame + 1 & 255;
-		params.framecount = params.framecount + 1;
-		params.restirtemporalframe = params.restirtemporalframe + 1;
+			params.frame = params.frame + 1 & 255;
+			params.framecount = params.framecount + 1;
+			params.restirtemporalframe = params.restirtemporalframe + 1;
+		}
 	}
 }
 

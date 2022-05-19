@@ -112,6 +112,11 @@ struct RenderParams
 	uint spatialTaps;
 };
 
+struct ViewerParams
+{
+	int selectedX; int selectedY;
+};
+
 struct CLRay
 {
 	uint voxelValue; // potentially unnecessary if position can be used to retrieve.

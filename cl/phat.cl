@@ -37,5 +37,6 @@ float evaluatePHat(
 	const float3 pHat = evaluatePHatFull(pointOnLight, Nlight,
 		shadingPoint, N, brdf, voxelEmitterValue, emitterSize);
 	const float result = length(pHat);
+	if (isnan(result) > 0.0 || isinf(result) > 0.0) return 0.0;
 	return result;
 }

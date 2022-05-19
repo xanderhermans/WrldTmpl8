@@ -407,6 +407,11 @@ float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int em
 
 	// pdf of the angle from the shading point to the emitting surface
 	float weight = 1.0 / pdf[index];
+	if (isinf(weight) > 0.0 || isnan(weight) > 0.0)
+	{
+		// we failed to calculate correct solid angles somehow and this rarily happens but does happen.
+		weight = 0.0;
+	}
 	// the pdf of the sampled square emitting surfaces
 	*invProbability = weight;
 
@@ -426,4 +431,34 @@ float3 lightContribution(const uint voxelvalue, const uint size)
 	value *= area * PI;
 #endif
 	return value;
+}
+
+void GenerateLightCandidate(const uint numberOfLights, float* probability, uint* index, uint* seedptr)
+{
+	*index = getRandomIndex(numberOfLights, seedptr);
+	// pdf of the light when uniformly sample is 1.0 / number of lights.
+	*probability = 1.0 / numberOfLights;
+}
+
+void PointOnVoxelLight(const struct Light* light,
+	float3 shadingPoint, uint* seedptr,
+	float3* positionOnVoxel, float* invPositionProbability, float3* Nlight)
+{
+	const int sizeOfLight = light->size;
+	// take middle of voxel
+	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
+	const float3 center = convert_float3(emitterVoxelCoords) + 0.5 * (float3)(sizeOfLight);
+
+#if VOXELSAREPOINTLIGHTS == 1
+	//int innerSizeOfLight = sizeOfLight - 2;
+	//int numberOfOutsideVoxels = sizeOfLight * sizeOfLight * sizeOfLight - innerSizeOfLight * innerSizeOfLight * innerSizeOfLight;
+	// the lights are all cube shaped so voxels that are not on the outside will never contribute and therefore have pdf = 0
+	//*invPositionProbability = max(0.0, convert_float(numberOfOutsideVoxels));
+	*invPositionProbability = 1;
+	*positionOnVoxel = center;
+	*Nlight = (float3)(0);
+#else
+	*positionOnVoxel = RandomPointOnVoxel(center, shadingPoint, sizeOfLight,
+		seedptr, invPositionProbability, Nlight);
+#endif
 }

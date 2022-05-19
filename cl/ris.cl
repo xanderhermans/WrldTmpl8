@@ -1,33 +1,3 @@
-void generateLightCandidate(const uint numberOfLights, float* probability, uint* index, uint* seedptr)
-{
-	*index = getRandomIndex(numberOfLights, seedptr);
-	// pdf of the light when uniformly sample is 1.0 / number of lights.
-	*probability = 1.0 / numberOfLights;
-}
-
-void pointOnVoxelLight(const struct Light* light,
-	float3 shadingPoint, uint* seedptr,
-	float3* positionOnVoxel, float* invPositionProbability, float3* Nlight)
-{
-	const int sizeOfLight = light->size;
-	// take middle of voxel
-	uint3 emitterVoxelCoords = indexToCoordinates(light->position);
-	const float3 center = convert_float3(emitterVoxelCoords) + 0.5 * (float3)(sizeOfLight);
-
-#if VOXELSAREPOINTLIGHTS == 1
-	//int innerSizeOfLight = sizeOfLight - 2;
-	//int numberOfOutsideVoxels = sizeOfLight * sizeOfLight * sizeOfLight - innerSizeOfLight * innerSizeOfLight * innerSizeOfLight;
-	// the lights are all cube shaped so voxels that are not on the outside will never contribute and therefore have pdf = 0
-	//*invPositionProbability = max(0.0, convert_float(numberOfOutsideVoxels));
-	* invPositionProbability = 1;
-	*positionOnVoxel = center;
-	*Nlight = (float3)(0);
-#else
-	* positionOnVoxel = RandomPointOnVoxel(center, shadingPoint, sizeOfLight,
-		seedptr, invPositionProbability, Nlight);
-#endif
-}
-
 bool isLightOccluded(const struct Light* light, const float3 shadingPoint,
 	const float3 L, float* dist, uint* side,
 	__read_only image3d_t grid,
@@ -82,18 +52,17 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 		{
 			uint lightIndex;
 			float p;
-			generateLightCandidate(numberOfLights, &p, &lightIndex, seedptr);
+			GenerateLightCandidate(numberOfLights, &p, &lightIndex, seedptr);
 
 			float3 positionOnVoxel; float invVoxelSideProbability; float3 Nlight;
 			struct Light* light = &lights[lightIndex];
-			pointOnVoxelLight(light, shadingPointOffset, seedptr, &positionOnVoxel,
+			PointOnVoxelLight(light, shadingPointOffset, seedptr, &positionOnVoxel,
 				&invVoxelSideProbability, &Nlight);
 
 			float pHat = evaluatePHat(positionOnVoxel, Nlight,
 				shadingPoint, N, brdf, light->voxel, light->size) * invVoxelSideProbability;
 			UpdateReservoir(&res, pHat / p, pHat, lightIndex, RandomFloat(seedptr),
 				positionOnVoxel, invVoxelSideProbability, Nlight);
-
 		}
 
 		AdjustWeight(&res, res.pHat);
@@ -135,13 +104,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 						float prev_pHat = evaluatePHat(prevRes.positionOnVoxel, prevRes.Nlight,
 							shadingPoint, N, brdf, prevLight->voxel, prevLight->size) * prevRes.invPositionProbability;
 
-						// re-weigh by 
-						float sumOfWeights = prevRes.sumOfWeights - prevRes.pHat + prev_pHat;
-						float meanSumOfWeights = sumOfWeights / prevRes.streamLength;
-						prevRes.sumOfWeights = meanSumOfWeights * prevStreamLength;
-						prevRes.streamLength = prevStreamLength;
-						prevRes.pHat = prev_pHat;
-
+						ReWeighSumOfWeights(&prevRes, prev_pHat, prevStreamLength);
 						CombineReservoir(&res, &prevRes, RandomFloat(seedptr));
 
 						// already calculated potential contribution. re-use.
@@ -155,8 +118,8 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 			}
 		}
 		// END TEMPORAL SAMPLING
-
 	}
+
 	reservoirs[x + y * SCRWIDTH] = res;
 }
 
