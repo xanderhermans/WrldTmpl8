@@ -1,7 +1,7 @@
 ﻿#define DEBUGCOLOR (float3)(1.0, 0.0, 1.0)
 #define DEBUGCOLOR2 (float3)(0.0, 1.0, 1.0)
-#define DEBUGX 500
-#define DEBUGY 500
+#define DBX 500
+#define DBY 500
 
 float SphericalTheta(const float3 v)
 {
@@ -375,7 +375,7 @@ float3 RandomPointOnVoxel(const float3 center, const float3 shadingPoint, int em
 
 		float3 R = surfacePoint - shadingPoint;
 		float3 L = normalize(R);
-		float distsquared = dot(R, R);
+		float distsquared = max(10e-6, dot(R, R));
 		float NlightDotL = dot(N, -L);
 		float area = size * size;
 		float solidAngle = NlightDotL * area / distsquared;

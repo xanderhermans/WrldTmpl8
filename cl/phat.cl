@@ -14,7 +14,7 @@ float3 evaluatePHatFull(
 	const float3 R = pointOnLight - shadingPoint;
 	const float3 L = normalize(R);
 	const float NdotL = max(dot(N, L), 0.0);
-	const float distsquared = max(0.0, dot(R, R));
+	const float distsquared = max(10e-6, dot(R, R));
 
 	const float area = size * size;
 #if VOXELSAREPOINTLIGHTS == 0
@@ -36,5 +36,6 @@ float evaluatePHat(
 {
 	const float3 pHat = evaluatePHatFull(pointOnLight, Nlight,
 		shadingPoint, N, brdf, voxelEmitterValue, emitterSize);
-	return length(pHat);
+	const float result = length(pHat);
+	return result;
 }

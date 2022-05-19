@@ -2,7 +2,7 @@ void UpdateReservoir(struct Reservoir* _this, const float weight, const float pH
 {
 	_this->streamLength += 1;
 	_this->sumOfWeights += weight;
-	if (r0 < weight / _this->sumOfWeights)
+	if (r0 < weight / max(10e-6, _this->sumOfWeights))
 	{
 		_this->lightIndex = index;
 		_this->positionOnVoxel = positionOnVoxel;
@@ -19,7 +19,7 @@ void UpdateReservoirSimple(struct Reservoir* _this, const float weight, const fl
 
 void ReWeighSumOfWeights(struct Reservoir* _this, const float newPHat, const uint streamLength)
 {
-	float sumOfWeights = _this->pHat * streamLength * newPHat;
+	float sumOfWeights = _this->adjustedWeight * streamLength * newPHat;
 	_this->sumOfWeights = sumOfWeights;
 	_this->streamLength = streamLength;
 }
