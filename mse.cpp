@@ -33,6 +33,8 @@ float energyInRaster(const float4* data, int width, int height)
 // -----------------------------------------------------------
 void MSE::Init()
 {
+	// switch between OpenCL rendering (true) and Surface rendering (false)
+	Game::autoRendering = true;
 	Image* image;
 
 	using namespace filesystem;
@@ -80,57 +82,57 @@ void MSE::PreRender()
 	viewerParams.selectedY = cursor_y;
 }
 
+// Only called when Game::autoRendering = false otherwise rendering is handled by OpenCL kernels
 void MSE::Render(Surface* surface)
 {
-	//   static Image* plottedImage = 0;
-	//   if (imagebuffer.size() > 0 /*&& plottedImage != imagebuffer[imageindex]*/)
-	//   {
-	   //	plottedImage = imagebuffer[imageindex];
-	   //	currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
-	   //	if (plottedImage->width > surface->width || plottedImage->height > surface->height)
-	   //	{
-	   //		printf("Image is larger than surface. Implicit cropping happening.\n");
-	   //	}
+	static Image* plottedImage = 0;
+	if (imagebuffer.size() > 0 /*&& plottedImage != imagebuffer[imageindex]*/)
+	{
+		plottedImage = imagebuffer[imageindex];
+		currentImageEnergy = energyInRaster(plottedImage->buffer, plottedImage->width, plottedImage->height);
+		if (plottedImage->width > surface->width || plottedImage->height > surface->height)
+		{
+			printf("Image is larger than surface. Implicit cropping happening.\n");
+		}
 
-	//       for (int y = 0; y < plottedImage->height; y++)
-	//       {
-	//           for (int x = 0; x < plottedImage->width; x++)
-	//           {
-	//               float4 val = plottedImage->buffer[x + y * plottedImage->width];
-	   //			uint32_t c = ((std::min<uint32_t>(static_cast<uint32_t>(val.z * 255), 255) << 0) |
-	   //				(std::min<uint32_t>(static_cast<uint32_t>(val.y * 255), 255) << 8) |
-	   //				(std::min<uint32_t>(static_cast<uint32_t>(val.x * 255), 255) << 16) |
-	   //				255 << 24);
-	   //				//(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
-	//               surface->Plot(x, y, c);
-	//           }
-	//       }
-	//   }
+		for (int y = 0; y < plottedImage->height; y++)
+		{
+			for (int x = 0; x < plottedImage->width; x++)
+			{
+				float4 val = plottedImage->buffer[x + y * plottedImage->width];
+				uint32_t c = ((std::min<uint32_t>(static_cast<uint32_t>(val.z * 256), 255) << 0) |
+					(std::min<uint32_t>(static_cast<uint32_t>(val.y * 256), 255) << 8) |
+					(std::min<uint32_t>(static_cast<uint32_t>(val.x * 256), 255) << 16) |
+					255 << 24);
+				//(std::min<uint32_t>(static_cast<uint32_t>(val.w * 255), 255) << 24));
+				surface->Plot(x, y, c);
+			}
+		}
+	}
 
-	   //uint cursor_color = 0xff00ff;
-	   //__count = 1;
-	   //{
-	   //	int j = cursor_x;
-	   //	int i = cursor_y;
-	   //	surface->Plot(j, i, cursor_color);
-	   //}
-	   //for (int i = cursor_y - sample_radius; i < cursor_y + sample_radius; i++) {
-	   //	for (int j = cursor_x; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j--) {
-	   //		if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
-	   //		{
-	   //			surface->Plot(j, i, cursor_color);
-	   //			__count++;
-	   //		}
-	   //	}
-	   //	for (int j = cursor_x + 1; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j++) {
-	   //		if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
-	   //		{
-	   //			surface->Plot(j, i, cursor_color);
-	   //			__count++;
-	   //		}
-	   //	}
-	   //}
-
+	uint cursor_color = 0xff00ff;
+	__count = 1;
+	{
+		int j = cursor_x;
+		int i = cursor_y;
+		surface->Plot(j, i, cursor_color);
+	}
+	for (int i = cursor_y - sample_radius; i < cursor_y + sample_radius; i++) {
+		for (int j = cursor_x; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j--) {
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+			{
+				surface->Plot(j, i, cursor_color);
+				__count++;
+			}
+		}
+		for (int j = cursor_x + 1; (j - cursor_x) * (j - cursor_x) + (i - cursor_y) * (i - cursor_y) <= sample_radius * sample_radius; j++) {
+			if (i >= 0 && i < SCRHEIGHT && j >= 0 && j < SCRWIDTH)
+			{
+				surface->Plot(j, i, cursor_color);
+				__count++;
+			}
+		}
+	}
 }
 
 KeyHandler qhandler = { 0, 'Q' };
@@ -215,11 +217,15 @@ float3 energyAroundCoord(int x, int y, int radius, float4* buff, int width, int 
 	{
 		int i = y;
 		int j = x;
-		float4 e = buff[j + i * width];
-		energy_x += e.x;
-		energy_y += e.y;
-		energy_z += e.z;
+		if (j >= 0 && j < width && i >= 0 && i < height)
+		{
+			float4 e = buff[j + i * width];
+			energy_x += e.x;
+			energy_y += e.y;
+			energy_z += e.z;
+		}
 	}
+
 
 	for (int i = y - radius; i < y + radius; i++)
 	{

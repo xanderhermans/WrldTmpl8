@@ -433,7 +433,7 @@ void main()
 		// send the rendering result to the screen using OpenGL
 		if (frameNr++ > 1)
 		{
-			//if (!game->autoRendering) renderTarget->CopyFrom( game->screen );
+			if (!game->autoRendering) renderTarget->CopyFrom( game->screen );
 			shader->Bind();
 			shader->SetInputTexture( 0, "c", renderTarget );
 			DrawQuad();
