@@ -90,7 +90,7 @@ __kernel void perPixelInitialSampling(__global struct DebugInfo* debugInfo,
 				struct CLRay* prevRay = &prevAlbedo[prevxy.x + prevxy.y * SCRWIDTH];
 				const uint prevSide = prevRay->side;
 				const float prevDist = prevRay->distance;
-				if (prevSide == side && distance(dist, prevDist) <= 0.15 * dist)
+				if (prevSide == side && distance(dist, prevDist) <= 0.1 * dist)
 				{
 					struct Reservoir prevRes = prevReservoirs[prevxy.x + prevxy.y * SCRWIDTH];
 					const uint prevStreamLength = min(params->numberOfMaxTemporalImportance * numberOfCandidates, prevRes.streamLength);

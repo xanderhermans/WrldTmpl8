@@ -43,7 +43,7 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 			const struct CLRay* neigbourRay = &albedo[neighbourIndex];
 			const uint neighbourSide = neigbourRay->side;
 			const float neighbourDist = neigbourRay->distance;
-			if (neighbourSide == side && distance(dist, neighbourDist) <= 0.15 * dist)
+			if (neighbourSide == side && distance(dist, neighbourDist) <= 0.1 * dist)
 			{
 				// use the world coordinate?
 				//const float3 neigbourShadingPoint = ShadingPoint(neigbourRay, params->E);
