@@ -29,7 +29,7 @@ void MyGame::Init()
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 
-	int world_index = 2;
+	int world_index = 3;
 	string worlds[5] = {"mountain","letters","scattered","cornellbox",""};
 	string world_dir = worlds[world_index];
 	string import_path = "scene_export/" + world_dir + import_filename;
@@ -37,8 +37,8 @@ void MyGame::Init()
 
 	World& world = *GetWorld();
 
-	//int loadedworld = MyGameScene::LoadWorld(world, import_path);
-	int loadedworld = -1;
+	int loadedworld = MyGameScene::LoadWorld(world, import_path);
+	//int loadedworld = -1;
 	if (loadedworld < 0)
 	{
 		switch (world_index)
@@ -59,12 +59,16 @@ void MyGame::Init()
 			MyGameScene::CreateWorld(world);
 			break;
 		}
-		MyGameScene::SaveWorld(import_path);
+		aabb& aabb = world.GetBounds();
+		uint sizeX = aabb.bmax[0];
+		uint sizeY = aabb.bmax[1];
+		uint sizeZ = aabb.bmax[2];
+		MyGameScene::SaveWorld(import_path, sizeX + 4, sizeY + 4, sizeZ + 4);
 	}
 
 	if (!filesystem::exists(export_path + ".obj"))
 	{
-		//WorldToOBJ(&world, export_path);
+		WorldToOBJ(&world, export_path);
 	}
 
 	RenderParams& params = world.GetRenderParams();

@@ -234,6 +234,7 @@ public:
 	void ScrollX( const int offset );
 	void ScrollY( const int offset );
 	void ScrollZ( const int offset );
+	aabb& GetBounds() { return bounds; }
 private:
 	// internal methods
 	void EraseSprite( const uint idx );
@@ -278,6 +279,10 @@ public:
 	}
 	__forceinline void Set( const uint x, const uint y, const uint z, const uint v /* actually an 8-bit value */ )
 	{
+		if (v > 0)
+		{
+			bounds.Grow(make_float3(x, y, z));
+		}
 		// calculate brick location in top-level grid
 		const uint bx = x / BRICKDIM;
 		const uint by = y / BRICKDIM;
@@ -437,6 +442,7 @@ private:
 		uint N;
 	};
 	// data members
+	aabb bounds;
 	mat4 camMat;						// camera matrix to be used for rendering
 	uint* grid = 0, * gridOrig = 0;		// pointer to host-side copy of the top-level grid
 #if ONEBRICKBUFFER == 1

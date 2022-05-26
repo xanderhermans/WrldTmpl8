@@ -598,6 +598,7 @@ void WorldToQuadMesh(World& world, Mesh& mesh)
 	delete[] grid;
 }
 
+// NOTE: I think there is an issue with worlds with size 1024. Try slightly smaller worlds.
 void Tmpl8::WorldToOBJ(Tmpl8::World* world, std::string filename)
 {
 	printf("Exporting world to obj!\r\n");

@@ -107,7 +107,7 @@ void DummyWorld(World& world)
 #endif
 }
 
-void MyGameScene::SaveWorld(std::string filename)
+void MyGameScene::SaveWorld(std::string filename, uint sizeX, uint sizeY, uint sizeZ)
 {
 	filesystem::path path = filename;
 	if (path.has_parent_path())
@@ -115,7 +115,7 @@ void MyGameScene::SaveWorld(std::string filename)
 		filesystem::create_directories(path.parent_path());
 	}
 
-	uint idx = CreateSprite(make_int3(0), make_int3(world_width + 4, world_height + 4, world_depth + 4), 1);
+	uint idx = CreateSprite(make_int3(0), make_int3(sizeX, sizeY, sizeZ), 1);
 	SaveSprite(idx, path.string().c_str());
 }
 

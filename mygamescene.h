@@ -7,7 +7,7 @@ namespace Tmpl8
 
 		int LoadWorld(World& world, std::string path);
 		void CreateWorld(World& world);
-		void SaveWorld(std::string path);
+		void SaveWorld(std::string path, uint sizeX, uint sizeY, uint sizeZ);
 
 		void CreateMountainWorld(World& world);
 		void CreateLetterWorld(World& world);
