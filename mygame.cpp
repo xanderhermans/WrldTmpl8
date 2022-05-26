@@ -26,21 +26,45 @@ static unordered_map<string, function<void(MyGame&, string)>> functionCommands;
 // -----------------------------------------------------------
 void MyGame::Init()
 {
-	string import_path = "scene_export/grid.vx";
-	string export_path = "scene_export/scene";
+	string import_filename = "/grid.vx";
+	string export_dir = "/scene";
+
+	int world_index = 2;
+	string worlds[5] = {"mountain","letters","scattered","cornellbox",""};
+	string world_dir = worlds[world_index];
+	string import_path = "scene_export/" + world_dir + import_filename;
+	string export_path = "scene_export/" + world_dir + export_dir;
 
 	World& world = *GetWorld();
 
-	int loadedworld = MyGameScene::LoadWorld(world, import_path);
+	//int loadedworld = MyGameScene::LoadWorld(world, import_path);
+	int loadedworld = -1;
 	if (loadedworld < 0)
 	{
-		MyGameScene::CreateWorld(world);
+		switch (world_index)
+		{
+		case 0:
+			MyGameScene::CreateMountainWorld(world);
+			break;
+		case 1:
+			MyGameScene::CreateLetterWorld(world);
+			break;
+		case 2:
+			MyGameScene::CreateScatteredWorld(world);
+			break;
+		case 3:
+			MyGameScene::CreateCornellBoxWorld(world);
+			break;
+		default:
+			MyGameScene::CreateWorld(world);
+			break;
+		}
 		MyGameScene::SaveWorld(import_path);
 	}
 
 	if (!filesystem::exists(export_path + ".obj"))
 	{
-		WorldToOBJ(&world, export_path);
+		//WorldToOBJ(&world, export_path);
 	}
 
 	RenderParams& params = world.GetRenderParams();
@@ -64,19 +88,19 @@ void MyGame::Init()
 	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().RemoveRandomLights(a); }, _1, _2, 2500); } });
 	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().SetUpMovingLights(a); }, _1, _2, 2500); } });
 
-	world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
-	world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(12 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(12 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(12 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(8 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(8 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(12 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(12 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(12 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
 
-	world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	world.SetBrick(24 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
-	world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(20 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(20 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
-	world.Set(20 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(24 * BRICKDIM, 0 * BRICKDIM, 16 * BRICKDIM, WHITE | (1 << 12));
+	//world.SetBrick(24 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(20 * BRICKDIM, 1 * BRICKDIM, 8 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(20 * BRICKDIM, 0 * BRICKDIM + 1, 16 * BRICKDIM, WHITE | (1 << 12));
+	//world.Set(20 * BRICKDIM, 1 * BRICKDIM, 24 * BRICKDIM, WHITE | (1 << 12));
 
 	vector<Light> ls;
 	world.OptimizeBricks(); //important to recognize bricks
@@ -339,7 +363,7 @@ void MyGame::Tick(float deltaTime)
 	//printf("temporal frames %d\r", renderparams.numberOfMaxTemporalImportance);
 	//printf("Frame: %d acc:%d sp:%d coord x:%.2f y:%.2f z:%.2f\r", GetWorld()->GetRenderParams().framecount, GetWorld()->GetRenderParams().accumulate, useSpatialResampling, O.x, O.y, O.z);
 
-	PrintDebug();
+	//PrintDebug();
 	//PrintStats();
 	DumpScreenBuffer();
 	if (lightManager.lightsAreMoving)

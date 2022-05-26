@@ -210,6 +210,7 @@ public:
 	void Sphere( const float x, const float y, const float z, const float r, const uint c );
 	void HDisc( const float x, const float y, const float z, const float r, const uint c );
 	void Print( const char* text, const uint x, const uint y, const uint z, const uint c );
+	void PrintZ( const char* text, const uint x, const uint y, const uint z, const uint c );
 	uint CreateSprite( const int3 pos, const int3 size, const int frames );
 	uint SpriteFrameCount( const uint idx );
 	void MoveSpriteTo( const uint idx, const uint x, const uint y, const uint z );
@@ -249,7 +250,7 @@ private:
 	vector<BigTile*>& GetBigTileList() { return TileManager::GetTileManager()->bigTile; }
 public:
 	// low-level voxel access
-	__forceinline uint Get( const uint x, const uint y, const uint z )
+	__forceinline uint Get( const uint x, const uint y, const uint z)
 	{
 		// calculate brick location in top-level grid
 		const uint bx = (x / BRICKDIM) & (GRIDWIDTH - 1);

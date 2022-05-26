@@ -13,6 +13,10 @@
     </ClCompile>
     <ClCompile Include="mygamescene.cpp" />
     <ClCompile Include="light_manager.cpp" />
+    <ClCompile Include="mountainscene.cpp" />
+    <ClCompile Include="letterscene.cpp" />
+    <ClCompile Include="scatterscene.cpp" />
+    <ClCompile Include="cornellboxscene.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="template\bluenoise.h">

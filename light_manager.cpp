@@ -34,7 +34,7 @@ void Tmpl8::LightManager::FindLightsInWorld(vector<Light>& ls)
 				ushort vox = 0;
 				const uint cellIdx = bx + bz * GRIDWIDTH + by * GRIDWIDTH * GRIDDEPTH;
 				const uint g = grid[cellIdx];
-				if ((g & 1) == 0 && (g >> 1) != 0) 
+				if ((g & 1) == 0) 
 				{ 
 					vox = g >> 1;
 					bool isEmitter = EmitStrength(vox) > 0;
@@ -56,7 +56,8 @@ void Tmpl8::LightManager::FindLightsInWorld(vector<Light>& ls)
 						{
 							for (uint lx = 0; lx < BRICKDIM; lx++)
 							{
-								vox = brick[(g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM];
+								uint _index = (g >> 1) * BRICKSIZE + lx + ly * BRICKDIM + lz * BRICKDIM * BRICKDIM;
+								vox = brick[_index];
 								bool isEmitter = EmitStrength(vox) > 0;
 								if (isEmitter)
 								{

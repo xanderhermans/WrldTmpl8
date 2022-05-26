@@ -525,6 +525,25 @@ void World::Print(const char* text, const uint x, const uint y, const uint z, co
 	}
 }
 
+void World::PrintZ(const char* text, const uint x, const uint y, const uint z, const uint c)
+{
+	static char f[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890+-=/\\*:;()[]{}<>!?.,'\"&#$_%^|";
+	static int* r = 0;
+	if (!r)
+	{
+		r = new int[256];
+		memset(r, 0, 1024);
+		for (int i = 0; i < strlen(f); i++) r[f[i]] = i;
+	}
+	for (int i = 0; i < strlen(text); i++) if (text[i] > 32)
+	{
+		const int t = r[text[i]], cx = t % 13, cy = t / 13;
+		uint* a = font->buffer + cx * 6 + cy * 10 * 78;
+		for (int v = 0; v < 10; v++) for (int u = 0; u < 6; u++)
+			if ((a[u + v * 78] & 0xffffff) == 0) Set(x, y + (9 - v), z + u + i * 6, c);
+	}
+}
+
 // SpriteManager::LoadSprite
 // ----------------------------------------------------------------------------
 uint SpriteManager::LoadSprite(const char* voxFile, bool largeModel)

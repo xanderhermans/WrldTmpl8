@@ -225,9 +225,11 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 					prevReservoirs[x + y * SCRWIDTH] = res;
 				}
 			}
+
+		//color = ToFloatRGB(voxel);
 	}
 
-	if (x == DBX && y == DBY) color = DEBUGCOLOR;
+	//if (x == DBX && y == DBY) color = DEBUGCOLOR;
 	return (float4)(color, dist);
 }
 

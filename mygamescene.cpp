@@ -3,10 +3,27 @@
 #include <filesystem>
 
 using namespace MyGameScene;
-
 const int world_width = 256;
 const int world_height = 128;
 const int world_depth = 288;
+
+void MyGameScene::DrawBox(World& world, uint _x, uint _y, uint _z, uint _xm, uint _ym, uint _zm, uint c)
+{
+	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
+	{
+		world.Set(_x, y, z, c);
+		world.Set(_xm, y, z, c);
+	}
+	for (int x = _x; x <= _xm; x++) for (int z = _z; z <= _zm; z++)
+	{
+		world.Set(x, _y, z, c);
+		world.Set(x, _ym, z, c);
+	}
+	for (int x = _x; x <= _xm; x++) for (int y = _y; y <= _ym; y++)
+	{
+		world.Set(x, y, _zm, c);
+	}
+}
 
 void DummyWorld(World& world)
 {
@@ -42,26 +59,12 @@ void DummyWorld(World& world)
 	};
 
 #if 1 // BOX
-	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
-	{
-		world.Set(_x, y, z, WHITE);
-		world.Set(_xm, y, z, WHITE);
-	}
-	for (int x = _x; x <= _xm; x++) for (int z = _z; z <= _zm; z++)
-	{
-		world.Set(x, _y, z, WHITE);
-		//world.Set(x, _ym, z, EMIT_BLUE);
-	}
-	for (int x = _x; x <= _xm; x++) for (int y = _y; y <= _ym; y++)
-	{
-		//world.Set(x, y, _z, EMIT_YELLOW);
-		//world.Set(x, y, _zm, EMIT_ORANGE);
-		world.Set(x, y, _zm, WHITE);
-	}
+	DrawBox(world, 0, 0, 0, _xm, _ym, _zm);
 #endif
 
-#if 0 //RANDOM SMALL LIGHTS
+#if 1 //RANDOM SMALL LIGHTS
 	const int offset = 10;
+	int count = 0;
 
 	for (int y = _y; y <= _ym; y++) for (int z = _z; z <= _zm; z++)
 	{
@@ -69,11 +72,13 @@ void DummyWorld(World& world)
 		if (col1 > 0)
 		{
 			world.Set(_x + offset, y, z, col1);
+			count++;
 		}
 		uint col2 = get_voxel_color_random(GREEN, 0.1);
 		if (col2 > 0)
 		{
 			world.Set(_xm - offset, y, z, col2);
+			count++;
 		}
 	}
 	for (int x = _x; x <= _xm; x++) for (int y = _y; y <= _ym; y++)
@@ -83,6 +88,7 @@ void DummyWorld(World& world)
 		if (col1 > 0)
 		{
 			world.Set(x, y, _zm - offset, col1);
+			count++;
 		}
 	}
 #endif
@@ -99,11 +105,6 @@ void DummyWorld(World& world)
 		world.Set(x, y, _z, WHITE | 0x4000);
 	}
 #endif
-}
-
-void MyGameScene::ScatterLights(World& world, int numberOfLights, int numberOfBrickLights)
-{
-	
 }
 
 void MyGameScene::SaveWorld(std::string filename)

@@ -122,9 +122,13 @@
   </ItemDefinitionGroup>
   <!-- END Custom section -->
   <ItemGroup>
+    <ClCompile Include="cornellboxscene.cpp" />
+    <ClCompile Include="letterscene.cpp" />
     <ClCompile Include="light_manager.cpp" />
+    <ClCompile Include="mountainscene.cpp" />
     <ClCompile Include="mygame.cpp" />
     <ClCompile Include="mygamescene.cpp" />
+    <ClCompile Include="scatterscene.cpp" />
     <ClCompile Include="template\template.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">precomp.h</PrecompiledHeaderFile>

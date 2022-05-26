@@ -60,7 +60,7 @@
 #define AA_SAMPLES	1	// 1 to disable, 2..4 to enable. Note: will be squared.
 
 // MIMIC SHADING AS IN GfxExp by Shocker-0x15
-#define GFXEXP 0
+#define GFXEXP 1
 
 #define VOXELSAREPOINTLIGHTS 0
 
