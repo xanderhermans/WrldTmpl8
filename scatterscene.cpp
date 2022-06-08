@@ -6,13 +6,13 @@ using namespace MyGameScene;
 
 const vector<pair<float3, float4>> colormapping = 
 { 
-	{make_float3(0.067), make_float4(1.0, 0.8, 0.6, 1.0)},
-	{make_float3(0.867, 0.467, 0.067), make_float4(1.0, 1.0, 1.0, 3.0)},
+	{make_float3(0.067), make_float4(1.0, 0.8, 0.6, 3.0)},
+	{make_float3(0.867, 0.467, 0.067), make_float4(1.0, 1.0, 1.0, 15.0)},
 	{make_float3(0.467, 0.933, 0.867), make_float4(1.0, 1.0, 1.0, 15.0)},
 	{make_float3(0.267, 0.133, 0.200), make_float4(0.0, 0.5, 1.0, 4.0)}
 };
 
-bool shouldEmit(float3 r, float4& replace)
+bool shouldBeReplaced1(float3 r, float4& replace)
 {
 	for (auto& key : colormapping)
 	{
@@ -65,7 +65,7 @@ void MyGameScene::CreateScatteredWorld(World& world)
 								vox = brick[_index];
 								float3 rgb = ToFloatRGB(vox);
 								float4 toReplace;
-								if (shouldEmit(rgb, toReplace))
+								if (shouldBeReplaced1(rgb, toReplace))
 								{
 									uint x = lx + bx * BRICKDIM;
 									uint y = ly + by * BRICKDIM;

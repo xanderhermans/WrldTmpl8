@@ -1631,7 +1631,7 @@ void World::Render()
 			albedoRender->SetArgument(albedoargi++, &gridMap);
 			albedoRender->SetArgument(albedoargi++, &uberGrid);
 			albedoRender->SetArgument(albedoargi++, brickBuffer);
-			albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			albedoRender->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &albedoRenderDone);
 
 			int perpixellighti = 0;
 			perPixelLightSampling->SetArgument(perpixellighti++, debugBuffer);
@@ -1644,7 +1644,7 @@ void World::Render()
 			perPixelLightSampling->SetArgument(perpixellighti++, &gridMap);
 			perPixelLightSampling->SetArgument(perpixellighti++, &uberGrid);
 			perPixelLightSampling->SetArgument(perpixellighti++, brickBuffer);
-			perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			perPixelLightSampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &candidateAndTemporalResamplingDone);
 
 			int spatialRisi = 0;
 			spatialResampling->SetArgument(spatialRisi++, debugBuffer);
@@ -1658,9 +1658,9 @@ void World::Render()
 			spatialResampling->SetArgument(spatialRisi++, &gridMap);
 			spatialResampling->SetArgument(spatialRisi++, &uberGrid);
 			spatialResampling->SetArgument(spatialRisi++, brickBuffer);
-			spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			spatialResampling->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &spatialResamplingDone);
 
-			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16));
+			currentRenderer->Run2D(make_int2(SCRWIDTH, SCRHEIGHT), make_int2(8, 16), 0, &shadingDone);
 
 			int finalizerargi = 0;
 			accumulatorFinalizer->SetArgument(finalizerargi++, screen);
@@ -1773,16 +1773,54 @@ void World::Commit()
 		if (sprite[i]->hasShadow) RemoveSpriteShadow(i);
 	}
 	// at this point, rendering *must* be done; let's make sure
-	if (Game::autoRendering)
+	if (Game::autoRendering && !viewer)
 	{
 		clWaitForEvents(1, &renderDone);
-		// profiling: https://stackoverflow.com/questions/23272170/opencl-measure-kernels-time
-		cl_ulong renderStart = 0;
-		cl_ulong renderEnd = 0;
-		clGetEventProfilingInfo(renderDone, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &renderStart, 0);
-		clGetEventProfilingInfo(renderDone, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &renderEnd, 0);
-		unsigned long duration = (unsigned long)(renderEnd - renderStart); // in nanoseconds
-		renderTime = duration / 1000000000.0f;
+#if RIS == 1
+		clWaitForEvents(1, &albedoRenderDone);
+		clWaitForEvents(1, &candidateAndTemporalResamplingDone);
+		clWaitForEvents(1, &spatialResamplingDone);
+		clWaitForEvents(1, &shadingDone);
+#endif
+		//// profiling: https://stackoverflow.com/questions/23272170/opencl-measure-kernels-time
+#if RIS == 1
+		const int nrOfTimers = 5;
+#else
+		const int nrOfTimers = 1;
+#endif
+		float* durationArr[nrOfTimers] = { 
+			&finalizingTime
+#if RIS == 1
+			,&albedoTime, &candidateTime, &spatialTime, &shadingTime
+#endif
+		};
+		cl_event eventArr[nrOfTimers] = { 
+			renderDone
+#if RIS == 1
+			,albedoRenderDone, candidateAndTemporalResamplingDone, spatialResamplingDone, shadingDone 
+#endif
+		};
+		float totalTime = 0;
+		for (int i = 0; i < nrOfTimers; i++)
+		{
+			cl_ulong renderStart = 0;
+			cl_ulong renderEnd = 0;
+			clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &renderStart, 0);
+			clGetEventProfilingInfo(eventArr[i], CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &renderEnd, 0);
+			unsigned long duration = (unsigned long)(renderEnd - renderStart); // in nanoseconds
+			*durationArr[i] = duration / 1000000000.0f;
+			totalTime += *durationArr[i];
+		}
+		renderTime = totalTime;
+
+		//{
+		//	cl_ulong renderStart = 0;
+		//	cl_ulong renderEnd = 0;
+		//	clGetEventProfilingInfo(renderDone, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &renderStart, 0);
+		//	clGetEventProfilingInfo(renderDone, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &renderEnd, 0);
+		//	unsigned long duration = (unsigned long)(renderEnd - renderStart); // in nanoseconds
+		//	renderTime = duration / 1000000000.0f;
+		//}
 	}
 }
 

@@ -54,6 +54,8 @@ void _perPixelSpatialResampling(const uint x, const uint y,
 
 				float pHat = evaluatePHat(neighbourRes.positionOnVoxel, neighbourRes.Nlight,
 					shadingPoint, N, brdf, neighbourLight->voxel, neighbourLight->size) * neighbourRes.invPositionProbability;
+				//float pHat = evaluatePHat(neighbourRes.positionOnVoxel, neighbourRes.Nlight,
+				//	shadingPoint, N, brdf, neighbourLight->voxel, neighbourLight->size);
 				
 				ReWeighSumOfWeights(&neighbourRes, pHat, neighbourRes.streamLength);
 				CombineReservoir(res, &neighbourRes, RandomFloat(seedptr));

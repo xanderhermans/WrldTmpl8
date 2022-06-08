@@ -33,6 +33,8 @@ void MyGameScene::CreateMountainWorld(World& world)
 			uint _h = (heights.buffer[_x + heights.width * _z] & 255) + 2;
 			world.Set(_x, _h, _z, BROWN);
 			world.Set(_x, _h  + 1, _z, WHITE | (emittance << 12));
+			world.Set(_x, _h + 2, _z, WHITE | (emittance << 12));
+			world.Set(_x, _h + 3, _z, WHITE | (emittance << 12));
 		}
 	}
 }

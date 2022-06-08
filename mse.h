@@ -13,6 +13,16 @@ namespace Tmpl8
 		static void Load(std::filesystem::path, Image& image);
 	};
 
+	class UBImage
+	{
+	public:
+		unsigned char* buffer = 0;
+		uint width = 0, height = 0;
+		std::string name = "";
+
+		static void Load(std::filesystem::path, UBImage& image);
+	};
+
 class MSE : public Game
 {
 public:

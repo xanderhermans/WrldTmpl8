@@ -519,7 +519,7 @@ __kernel void finalizeSimple(write_only image2d_t outimg, __global float4* pixel
 	if ((x == params->selectedX && (y > params->selectedY - 3 && y < params->selectedY + 3))
 		|| ((x > params->selectedX - 3 && x < params->selectedX + 3) && y == params->selectedY))
 	{
-		frameColor.xyz = DEBUGCOLOR;
+		//frameColor.xyz = DEBUGCOLOR;
 	}
 	write_imagef(outimg, (int2)(x, y), (float4)(frameColor.xyz, 1));
 }

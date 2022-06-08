@@ -206,6 +206,11 @@ public:
 	void Commit();
 	void Render();
 	float GetRenderTime() { return renderTime; }
+	float GetAlbedoTime() { return albedoTime; }
+	float GetCandidateTime() { return candidateTime; }
+	float GetSpatialTime() { return spatialTime; }
+	float GetShadingTime() { return shadingTime; }
+	float GetFinalizingTime() { return finalizingTime; }
 	// high-level voxel access
 	void Sphere( const float x, const float y, const float z, const float r, const uint c );
 	void HDisc( const float x, const float y, const float z, const float r, const uint c );
@@ -493,8 +498,20 @@ private:
 	Kernel* uberGridUpdater;			// build a 32x32x32 top-level grid over the brickmap
 	cl_event ubergridDone;				// for profiling
 	cl_event copyDone, commitDone;		// events for queue synchronization
+	public:
 	cl_event renderDone;				// event used for profiling
-	float renderTime;					// render time for the previous frame (in seconds)
+	cl_event albedoRenderDone;
+	cl_event candidateAndTemporalResamplingDone;
+	cl_event spatialResamplingDone;
+	cl_event shadingDone;
+	cl_event finalizingDone;
+	private:
+	float renderTime = 0;					// render time for the previous frame (in seconds)
+	float albedoTime = 0;
+	float candidateTime = 0;
+	float spatialTime = 0;
+	float shadingTime = 0;
+	float finalizingTime = 0;
 	uint tasks = 0;						// number of changed bricks, to be passed to commit kernel
 	bool copyInFlight = false;			// flag for skipping async copy on first iteration
 	bool commitInFlight = false;		// flag to make next commit wait for previous to complete

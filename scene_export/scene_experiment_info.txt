@@ -1,0 +1,78 @@
+mountain scene: emitters 9408 voxels 0 bricks
+- angle 1: 
+	- tmpl8: Camera at _D(-0.67, -0.18, -0.72), _O(954.84, 23.43, 955.18); fov 48.89
+	- GfxExp: -cam-pos -954.84 23.43 955.18 -cam-pitch -169.63 -cam-yaw 42.94 -cam-roll 180.00 fov 48.8879
+- angle 2:
+	- tmpl8: Camera at _D(0.40, -0.38, 0.83), _O(353.51, 234.30, 509.94); fov 48.89
+	- GfxExp: -cam-pos -353.51 234.30 509.94 -cam-pitch 22.41 -cam-yaw -25.73 -cam-roll 0.00 fov 48.8879
+	
+letters scene: emitters 1249 voxels 0 bricks
+- angle 1: 
+	- tmpl8: Camera at _D(0.11, -0.22, 0.97), _O(152.32, 59.82, -49.48); fov 48.89
+	- GfxExp: -cam-pos -152.32 59.82 -49.48 -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 fov 48.8879
+- angle 2:
+	- tmpl8: Camera at _D(-0.48, -0.28, -0.83), _O(195.35, 84.76, 264.97); fov 48.89
+	- GfxExp: -cam-pos -195.35 84.76 264.97 -cam-pitch -163.72 -cam-yaw 30.04 -cam-roll 180.00 fov 48.8879
+	
+apartments scene: emitters 18080 voxels 0 bricks
+- angle 1: 
+	- tmpl8: Camera at _D(-0.55, -0.26, 0.79), _O(193.53, 54.54, 85.59); fov 48.89
+	- GfxExp: -cam-pos -193.53 54.54 85.59 -cam-pitch 15.11 -cam-yaw 34.85 -cam-roll 0.00 fov 48.8879
+- angle 2:
+	- tmpl8: Camera at _D(0.45, -0.39, -0.80), _O(87.03, 86.38, 247.10); fov 48.89
+	- GfxExp: -cam-pos -87.03 86.38 247.10 -cam-pitch -156.98 -cam-yaw -29.36 -cam-roll 180.00 fov 48.8879
+	
+cornell box scene: emitters 0 voxels 256 bricks or 131072 voxels 0 bricks
+- angle 1: 
+	- tmpl8: Camera at _D(0.11, -0.22, 0.97), _O(81.18, 196.95, -284.07); fov 48.89
+	- GfxExp: -cam-pos -81.18 196.95 -284.07 -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 fov 48.8879
+	
+	
+pt vs screenbufferdata/tmpl8/results_restir\sa32\mountain1.dat MSE 0.013417 RMAE 0.052695
+pt vs screenbufferdata/tmpl8/results_restir\sa32\mountain2.dat MSE 0.014436 RMAE 0.034544
+pt vs screenbufferdata/tmpl8/results_restir\sa32\letters1.dat MSE 0.002498 RMAE 0.006828
+pt vs screenbufferdata/tmpl8/results_restir\sa32\letters2.dat MSE 0.003763 RMAE 0.009551
+pt vs screenbufferdata/tmpl8/results_restir\sa32\flyingapartments1.dat MSE 0.034739 RMAE 0.042758
+pt vs screenbufferdata/tmpl8/results_restir\sa32\flyingapartments2.dat MSE 0.032932 RMAE 0.039965
+pt vs screenbufferdata/tmpl8/results_restir\sa32\cornellbricks.dat MSE 0.013053 RMAE 0.013241
+pt vs screenbufferdata/tmpl8/results_restir\sa32\cornellvoxels.dat MSE 0.027852 RMAE 0.016684
+pt vs screenbufferdata/tmpl8/results_restir\sa16\mountain1.dat MSE 0.018871 RMAE 0.054420
+pt vs screenbufferdata/tmpl8/results_restir\sa16\mountain2.dat MSE 0.023960 RMAE 0.035899
+pt vs screenbufferdata/tmpl8/results_restir\sa16\letters1.dat MSE 0.029008 RMAE 0.006985
+pt vs screenbufferdata/tmpl8/results_restir\sa16\letters2.dat MSE 0.006430 RMAE 0.009871
+pt vs screenbufferdata/tmpl8/results_restir\sa16\flyingapartments1.dat MSE 0.025866 RMAE 0.043406
+pt vs screenbufferdata/tmpl8/results_restir\sa16\flyingapartments2.dat MSE 0.335100 RMAE 0.041710
+pt vs screenbufferdata/tmpl8/results_restir\sa16\cornellbricks.dat MSE 0.011742 RMAE 0.013111
+pt vs screenbufferdata/tmpl8/results_restir\sa16\cornellvoxels.dat MSE 0.028734 RMAE 0.016696
+pt vs screenbufferdata/tmpl8/results_restir\sa8\mountain1.dat MSE 0.026509 RMAE 0.056238
+pt vs screenbufferdata/tmpl8/results_restir\sa8\mountain2.dat MSE 0.038028 RMAE 0.037470
+pt vs screenbufferdata/tmpl8/results_restir\sa8\letters1.dat MSE 0.007596 RMAE 0.007041
+pt vs screenbufferdata/tmpl8/results_restir\sa8\letters2.dat MSE 0.004377 RMAE 0.009918
+pt vs screenbufferdata/tmpl8/results_restir\sa8\flyingapartments1.dat MSE 0.252293 RMAE 0.046068
+pt vs screenbufferdata/tmpl8/results_restir\sa8\flyingapartments2.dat MSE 0.114357 RMAE 0.043080
+pt vs screenbufferdata/tmpl8/results_restir\sa8\cornellbricks.dat MSE 0.006683 RMAE 0.013210
+pt vs screenbufferdata/tmpl8/results_restir\sa8\cornellvoxels.dat MSE 0.018243 RMAE 0.016565
+pt vs screenbufferdata/tmpl8/results_restir\sa1\mountain1.dat MSE 0.075533 RMAE 0.061780
+pt vs screenbufferdata/tmpl8/results_restir\sa1\mountain2.dat MSE 0.047011 RMAE 0.041013
+pt vs screenbufferdata/tmpl8/results_restir\sa1\letters1.dat MSE 0.017321 RMAE 0.007534
+pt vs screenbufferdata/tmpl8/results_restir\sa1\letters2.dat MSE 0.011557 RMAE 0.010418
+pt vs screenbufferdata/tmpl8/results_restir\sa1\flyingapartments1.dat MSE 0.156033 RMAE 0.050204
+pt vs screenbufferdata/tmpl8/results_restir\sa1\flyingapartments2.dat MSE 1.288220 RMAE 0.047389
+pt vs screenbufferdata/tmpl8/results_restir\sa1\cornellbricks.dat MSE 0.749554 RMAE 0.014485
+pt vs screenbufferdata/tmpl8/results_restir\sa1\cornellvoxels.dat MSE 0.021205 RMAE 0.017410
+pt vs screenbufferdata/tmpl8/results_restir\points\mountain1.dat MSE 0.014086 RMAE 0.060441
+pt vs screenbufferdata/tmpl8/results_restir\points\mountain2.dat MSE 0.012853 RMAE 0.037366
+pt vs screenbufferdata/tmpl8/results_restir\points\letters1.dat MSE 0.001474 RMAE 0.012481
+pt vs screenbufferdata/tmpl8/results_restir\points\letters2.dat MSE 0.002788 RMAE 0.015408
+pt vs screenbufferdata/tmpl8/results_restir\points\flyingapartments1.dat MSE 0.016609 RMAE 0.052616
+pt vs screenbufferdata/tmpl8/results_restir\points\flyingapartments2.dat MSE 0.020296 RMAE 0.046290
+pt vs screenbufferdata/tmpl8/results_restir\points\cornellbricks.dat MSE 0.013931 RMAE 0.046639
+pt vs screenbufferdata/tmpl8/results_restir\points\cornellvoxels.dat MSE 0.016448 RMAE 0.050652
+pt vs screenbufferdata/gfxexp/results/sa32\mountain1.dat MSE 0.227798 RMAE 0.085381
+pt vs screenbufferdata/gfxexp/results/sa32\mountain2.dat MSE 0.157766 RMAE 0.054737
+pt vs screenbufferdata/gfxexp/results/sa32\letters1.dat MSE 0.083611 RMAE 0.022470
+pt vs screenbufferdata/gfxexp/results/sa32\letters2.dat MSE 0.013940 RMAE 0.017269
+pt vs screenbufferdata/gfxexp/results/sa32\flyingapartments1.dat MSE 0.112934 RMAE 0.073567
+pt vs screenbufferdata/gfxexp/results/sa32\flyingapartments2.dat MSE 0.157225 RMAE 0.072524
+pt vs screenbufferdata/gfxexp/results/sa32\cornellvoxels.dat MSE 0.026609 RMAE 0.053477
+pt vs screenbufferdata/gfxexp/results/sa32\cornellvoxels.dat MSE 0.026609 RMAE 0.053477

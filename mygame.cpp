@@ -21,6 +21,24 @@ static bool useTemporalResampling = USETEMPORAL;
 static unordered_map<string, void*> commands;
 static unordered_map<string, function<void(MyGame&, string)>> functionCommands;
 
+static float3 Ds[10] = {
+	float3(-0.67, -0.18, -0.72), float3(0.40, -0.38, 0.83),
+	float3(0.11, -0.22, 0.97), float3(-0.48, -0.28, -0.83),
+	float3(-0.55, -0.26, 0.79), float3(0.45, -0.39, -0.80),
+	float3(0.11, -0.22, 0.97), float3(0.11, -0.22, 0.97),
+	float3(0.11, -0.22, 0.97), float3(0.11, -0.22, 0.97)
+};
+static float3 Os[10] = {
+	float3(954.84, 23.43, 955.18), float3(353.51, 234.30, 509.94),
+	float3(152.32, 59.82, -49.48), float3(195.35, 84.76, 264.97),
+	float3(193.53, 54.54, 85.59), float3(87.03, 86.38, 247.10),
+	float3(81.18, 196.95, -284.07), float3(81.18, 196.95, -284.07),
+	float3(107.85, 60.81, -48.86), float3(107.85, 60.81, -48.86)
+};
+
+static int world_index = 3;
+static int angle_offset_index = 0;
+
 // -----------------------------------------------------------
 // Initialize the application
 // -----------------------------------------------------------
@@ -29,7 +47,6 @@ void MyGame::Init()
 	string import_filename = "/grid.vx";
 	string export_dir = "/scene";
 
-	int world_index = 3;
 	string worlds[5] = {"mountain","letters","scattered","cornellbox",""};
 	string world_dir = worlds[world_index];
 	string import_path = "scene_export/" + world_dir + import_filename;
@@ -70,6 +87,11 @@ void MyGame::Init()
 	{
 		WorldToOBJ(&world, export_path);
 	}
+
+	_D = Ds[world_index * 2 + angle_offset_index];
+	_O = Os[world_index * 2 + angle_offset_index];
+	D = _D;
+	O = _O;
 
 	RenderParams& params = world.GetRenderParams();
 	params.numberOfLights = 0;
@@ -321,9 +343,65 @@ void MyGame::PrintStats()
 
 	mat4& cammat = GetWorld()->GetCameraMatrix();
 	float3& angles = cammat.EulerAngles() * 180 * INVPI;
+	World& world = *GetWorld();
 
-	printf("-cam-pos %.2f %.2f %.2f -cam-pitch %.2f -cam-yaw %.2f -cam-roll %.2f fov %.4f\n", -O.x, O.y, O.z, angles.x, angles.y, angles.z, fov);
-	printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\n", D.x, D.y, D.z, O.x, O.y, O.z, fov);
+	printf("                                                                                \r");
+	printf("-cam-pos %.2f %.2f %.2f -cam-pitch %.2f -cam-yaw %.2f -cam-roll %.2f fov %.4f\r", -O.x, O.y, O.z, angles.x, angles.y, angles.z, fov);
+	//printf("Camera at _D(%.2f, %.2f, %.2f), _O(%.2f, %.2f, %.2f); fov %.2f\r", D.x, D.y, D.z, O.x, O.y, O.z, fov);
+
+#if RIS == 1
+	clWaitForEvents(1, &world.renderDone);
+	clWaitForEvents(1, &world.albedoRenderDone);
+	clWaitForEvents(1, &world.candidateAndTemporalResamplingDone);
+	clWaitForEvents(1, &world.spatialResamplingDone);
+	clWaitForEvents(1, &world.shadingDone);
+
+	const int numberOfFrames = 100;
+	static int frameCounter = -1;
+	static float totalRenderTimes[numberOfFrames] = { };
+	static float albedoRenderTimes[numberOfFrames] = { };
+	static float candidateRenderTimes[numberOfFrames] = { };
+	static float spatialRenderTimes[numberOfFrames] = { };
+	static float shadingRenderTimes[numberOfFrames] = { };
+	static float finalizingRenderTimes[numberOfFrames] = { };
+	if (frameCounter < 0) //first frame
+	{
+		for (int i = 0; i < numberOfFrames; i++) { totalRenderTimes[i] = -1; }
+		for (int i = 0; i < numberOfFrames; i++) { albedoRenderTimes[i] = -1; }
+		for (int i = 0; i < numberOfFrames; i++) { candidateRenderTimes[i] = -1; }
+		for (int i = 0; i < numberOfFrames; i++) { spatialRenderTimes[i] = -1; }
+		for (int i = 0; i < numberOfFrames; i++) { shadingRenderTimes[i] = -1; }
+		for (int i = 0; i < numberOfFrames; i++) { finalizingRenderTimes[i] = -1; }
+		frameCounter = 0;
+	}
+
+	float totalRenderTime = 0;
+	float albedoRenderTime = 0;
+	float candidateRenderTime = 0;
+	float spatialRenderTime = 0;
+	float shadingRenderTime = 0;
+	float finalizingRenderTime = 0;
+
+	totalRenderTimes[frameCounter] = world.GetRenderTime();
+	albedoRenderTimes[frameCounter] = world.GetAlbedoTime();
+	candidateRenderTimes[frameCounter] = world.GetCandidateTime();
+	spatialRenderTimes[frameCounter] = world.GetSpatialTime();
+	shadingRenderTimes[frameCounter] = world.GetShadingTime();
+	finalizingRenderTimes[frameCounter] = world.GetFinalizingTime();
+
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = totalRenderTimes[i]; if (time < 0 || i == numberOfFrames) { totalRenderTime /= i; break; } totalRenderTime += time; }
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = albedoRenderTimes[i];  if (time < 0 || i == numberOfFrames) { albedoRenderTime /= i; break; } albedoRenderTime += time; }
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = candidateRenderTimes[i];  if (time < 0 || i == numberOfFrames) { candidateRenderTime /= i; break; } candidateRenderTime += time; }
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = spatialRenderTimes[i];  if (time < 0 || i == numberOfFrames) { spatialRenderTime /= i; break; } spatialRenderTime += time; }
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = shadingRenderTimes[i];  if (time < 0 || i == numberOfFrames) { shadingRenderTime /= i; break; } shadingRenderTime += time; }
+	for (int i = 0; i < numberOfFrames + 1; i++) { float time = finalizingRenderTimes[i];  if (time < 0 || i == numberOfFrames) { finalizingRenderTime /= i; break; } finalizingRenderTime += time; }
+
+	//printf("                                                                                                                                 \r");
+	printf("%d total %f, albedo %f, candidate %f, spatial %f, shading %f\n", frameCounter, totalRenderTime * 1000, albedoRenderTime * 1000, candidateRenderTime * 1000, spatialRenderTime * 1000, (shadingRenderTime + finalizingRenderTime) * 1000);
+	//printf("%d total %f, albedo %f, candidate %f, spatial %f, shading %f, finalizing %f\n", frameCounter, world.GetRenderTime(), world.GetAlbedoTime(), world.GetCandidateTime(), world.GetSpatialTime(), world.GetShadingTime(), world.GetFinalizingTime());
+
+	frameCounter = (frameCounter + 1) % numberOfFrames;
+#endif
 }
 
 void MyGame::PrintDebug()
@@ -361,6 +439,7 @@ void MyGame::PrintDebug()
 void MyGame::Tick(float deltaTime)
 {
 	HandleControls(deltaTime);
+	World& world = *GetWorld();
 	RenderParams& renderparams = GetWorld()->GetRenderParams();
 	// clear line
 	//printf("                                                            \r");

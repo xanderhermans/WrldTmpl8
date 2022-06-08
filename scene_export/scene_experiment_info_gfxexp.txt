@@ -1,0 +1,10 @@
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/mountain/scene.obj" 1.0 trad -inst scene -cam-pos -954.84 23.43 955.18 -cam-pitch -169.63 -cam-yaw 42.94 -cam-roll 180.00 fov 48.8879
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/mountain/scene.obj" 1.0 trad -inst scene -cam-pos -353.51 234.30 509.94 -cam-pitch 22.41 -cam-yaw -25.73 -cam-roll 0.00 fov 48.8879
+
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/letters/scene.obj" 1.0 trad -inst scene -cam-pos -152.32 59.82 -49.48 -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 fov 48.8879
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/letters/scene.obj" 1.0 trad -inst scene -cam-pos -195.35 84.76 264.97 -cam-pitch -163.72 -cam-yaw 30.04 -cam-roll 180.00 fov 48.8879
+
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/scattered/scene.obj" 1.0 trad -inst scene -cam-pos -193.53 54.54 85.59 -cam-pitch 15.11 -cam-yaw 34.85 -cam-roll 0.00 fov 48.8879
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/scattered/scene.obj" 1.0 trad -inst scene -cam-pos -87.03 86.38 247.10 -cam-pitch -156.98 -cam-yaw -29.36 -cam-roll 180.00 fov 48.8879
+
+"../x64/Release/restir" -name scene -obj "../../../INFOMGMT/WrldTmpl8-main/scene_export/cornellbox/scene.obj" 1.0 trad -inst scene -cam-pos -81.18 196.95 -284.07 -cam-pitch 12.70 -cam-yaw -6.47 -cam-roll 0.00 fov 48.8879
