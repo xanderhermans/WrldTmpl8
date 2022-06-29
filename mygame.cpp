@@ -17,6 +17,7 @@ static bool shouldDumpBuffer = false;
 static bool takeScreenshot = false;
 static bool useSpatialResampling = USESPATIAL;
 static bool useTemporalResampling = USETEMPORAL;
+static bool skyDomeSampling = true;
 
 static unordered_map<string, void*> commands;
 static unordered_map<string, function<void(MyGame&, string)>> functionCommands;
@@ -36,7 +37,7 @@ static float3 Os[10] = {
 	float3(107.85, 60.81, -48.86), float3(107.85, 60.81, -48.86)
 };
 
-static int world_index = 3;
+static int world_index = 2;
 static int angle_offset_index = 0;
 
 // -----------------------------------------------------------
@@ -102,6 +103,7 @@ void MyGame::Init()
 	params.spatialRadius = SPATIALRADIUS;
 	params.numberOfCandidates = NUMBEROFCANDIDATES;
 	params.numberOfMaxTemporalImportance = TEMPORALMAXIMPORTANCE;
+	params.skyDomeSampling = skyDomeSampling;
 	world.GetDebugInfo().counter = 0;
 
 	commands.insert({ "spatialtaps", &params.spatialTaps });
@@ -110,6 +112,7 @@ void MyGame::Init()
 	commands.insert({ "temporalimportance", &params.numberOfMaxTemporalImportance });
 	commands.insert({ "spatial", &params.spatial });
 	commands.insert({ "temporal", &params.temporal });
+	commands.insert({ "skydome", &params.skyDomeSampling });
 	functionCommands.insert({ "addlights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().AddRandomLights(a); }, _1, _2, 2500); }});
 	functionCommands.insert({ "removelights", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().RemoveRandomLights(a); }, _1, _2, 2500); } });
 	functionCommands.insert({ "movelightcount", [](MyGame& _1, string _2) {IntArgFunction([](MyGame& g, int a) {g.GetLightManager().SetUpMovingLights(a); }, _1, _2, 2500); } });

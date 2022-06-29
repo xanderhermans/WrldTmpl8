@@ -104,7 +104,7 @@ struct RenderParams
 	float4 Nleft, Nright, Ntop, Nbottom;
 	float4 prevRight, prevDown;
 	float4 prevP0, prevP1, prevP2, prevP3;
-	int accumulate, spatial, temporal; //booleans
+	int accumulate, spatial, temporal, skyDomeSampling; //booleans
 	uint numberOfLights;
 	uint numberOfCandidates;
 	uint numberOfMaxTemporalImportance;

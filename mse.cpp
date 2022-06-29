@@ -42,14 +42,13 @@ float CalculateMSE(const float4* gt, const float4* data, int width, int height)
 	{
 		float3 _gt = make_float3(gt[i]);
 		float3 _data = make_float3(data[i]);
-		float Y = length(_gt);
-		float Y_hat = length(_data);
 
 		//float Y = (gt[i].x + gt[i].y + gt[i].z) / 3.0f;
 		//float Y_hat = (data[i].x + data[i].y + data[i].z) / 3.0f;
-		total += (Y - Y_hat) * (Y - Y_hat);
+		float3 y = (_gt - _data) * (_gt - _data);
+		total += y.x + y.y + y.z;
 	}
-	return total / N;
+	return total / (N * 3);
 }
 
 float CalculateRMAE(const float4* gt, const float4* data, int width, int height)
@@ -60,14 +59,13 @@ float CalculateRMAE(const float4* gt, const float4* data, int width, int height)
 	{
 		float3 _gt = make_float3(gt[i]);
 		float3 _data = make_float3(data[i]);
-		float Y = length(_gt);
-		float Y_hat = length(_data);
 
 		//float Y = (gt[i].x + gt[i].y + gt[i].z) / 3.0f;
 		//float Y_hat = (data[i].x + data[i].y + data[i].z) / 3.0f;
-		total += fabs(Y - Y_hat);
+		float3 y = fabs(_gt - _data);
+		total += y.x + y.y + y.z;
 	}
-	return total / N;
+	return total / (N * 3);
 }
 
 void stitchImage(std::filesystem::path p, vector<UBImage*> ubimages, int start, int segmentWidth)
@@ -205,51 +203,51 @@ void doCreateResultImages()
 		ToCompare[toCompareIndex].push_back(image);
 	}
 
-	{
-		path p = "screenbufferdata/results/point_sa_gt";
-		for (int i = 0; i < numberOfRasters; i++)
-		{
-			vector<UBImage*> _images;
-			_images.push_back(ToCompare[toCompareIndex - 1][i]);
-			_images.push_back(ToCompare[0][i]);
-			_images.push_back(gtImages[i]);
-			int w = _images[0]->width;
-			int segmentWidth = w / _images.size();
-			int start = 0.75f * segmentWidth;
-			stitchImage(p, _images, start, segmentWidth);
-		}
-	}
+	//{
+	//	path p = "screenbufferdata/results/point_sa_gt";
+	//	for (int i = 0; i < numberOfRasters; i++)
+	//	{
+	//		vector<UBImage*> _images;
+	//		_images.push_back(ToCompare[toCompareIndex - 1][i]);
+	//		_images.push_back(ToCompare[0][i]);
+	//		_images.push_back(gtImages[i]);
+	//		int w = _images[0]->width;
+	//		int segmentWidth = w / _images.size();
+	//		int start = 0.75f * segmentWidth;
+	//		stitchImage(p, _images, start, segmentWidth);
+	//	}
+	//}
 
-	{
-		path p = "screenbufferdata/results/gfxexp_sa_gt";
-		for (int i = 0; i < numberOfRasters; i++)
-		{
-			vector<UBImage*> _images;
-			_images.push_back(ToCompare[toCompareIndex][i]);
-			_images.push_back(ToCompare[0][i]);
-			_images.push_back(gtImages[i]);
-			int w = _images[0]->width;
-			int segmentWidth = w / _images.size();
-			int start = 0.75f * segmentWidth;
-			stitchImage(p, _images, start, segmentWidth);
-		}
-	}
+	//{
+	//	path p = "screenbufferdata/results/gfxexp_sa_gt";
+	//	for (int i = 0; i < numberOfRasters; i++)
+	//	{
+	//		vector<UBImage*> _images;
+	//		_images.push_back(ToCompare[toCompareIndex][i]);
+	//		_images.push_back(ToCompare[0][i]);
+	//		_images.push_back(gtImages[i]);
+	//		int w = _images[0]->width;
+	//		int segmentWidth = w / _images.size();
+	//		int start = 0.75f * segmentWidth;
+	//		stitchImage(p, _images, start, segmentWidth);
+	//	}
+	//}
 
-	{
-		path p = "screenbufferdata/results/sa_32_16_8_1";
-		for (int i = 0; i < numberOfRasters; i++)
-		{
-			vector<UBImage*> _images;
-			_images.push_back(ToCompare[0][i]);
-			_images.push_back(ToCompare[1][i]);
-			_images.push_back(ToCompare[2][i]);
-			_images.push_back(ToCompare[3][i]);
-			int w = _images[0]->width;
-			int segmentWidth = w / _images.size();
-			int start = 0.75f * segmentWidth;
-			stitchImage(p, _images, start, segmentWidth);
-		}
-	}
+	//{
+	//	path p = "screenbufferdata/results/sa_32_16_8_1";
+	//	for (int i = 0; i < numberOfRasters; i++)
+	//	{
+	//		vector<UBImage*> _images;
+	//		_images.push_back(ToCompare[0][i]);
+	//		_images.push_back(ToCompare[1][i]);
+	//		_images.push_back(ToCompare[2][i]);
+	//		_images.push_back(ToCompare[3][i]);
+	//		int w = _images[0]->width;
+	//		int segmentWidth = w / _images.size();
+	//		int start = 0.75f * segmentWidth;
+	//		stitchImage(p, _images, start, segmentWidth);
+	//	}
+	//}
 }
 
 // -----------------------------------------------------------

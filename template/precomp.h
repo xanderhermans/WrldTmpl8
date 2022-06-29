@@ -1350,9 +1350,9 @@ public:
 	// pixel. A collection of these can be found online at http://www.hdrlabs.com/sibl/archive.html. Additional
 	// bitmaps can be found via https://cgtricks.com/list-sites-free-hdri and https://polyhaven.com/hdris.
 	// It is advisable to use a high resolution image of 5000x2500 pixels or larger.
-	static inline string skyDomeImage = "assets/sky_21.hdr";
+	static inline string skyDomeImage = "assets/sky_15.hdr";
 	static inline float skyDomeScale = 1.5f;		// brightness scale for the image
-	static inline float skyDomeLightScale = 10.0f;	// brightness scale for the dome in rendering
+	static inline float skyDomeLightScale = 2.0f;	// brightness scale for the dome in rendering
 };
 
 // EOF

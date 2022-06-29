@@ -62,3 +62,7 @@ buildlog.txt
 *.mtl
 
 *.dat
+
+*.psd
+
+scene_export/**/*.vx

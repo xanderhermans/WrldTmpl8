@@ -182,6 +182,7 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 	if (voxel == 0)
 	{
 		dist = 1e20f;
+		if (params->skyDomeSampling) color = SampleSky((float3)(D.x, D.z, D.y), sky, params->skyWidth, params->skyHeight);
 	}
 	else
 	{
@@ -227,6 +228,35 @@ float4 render_di_ris(__global struct DebugInfo* debugInfo, const struct CLRay* h
 			}
 
 		//color = ToFloatRGB(voxel);
+	}
+
+	//sample sky
+	if (params->skyDomeSampling)
+	{
+		float3 incoming = (float3)(0.0, 0.0, 0.0);
+		const float skyLightScale = params->skyLightScale;
+		const float r0 = blueNoiseSampler(blueNoise, x, y, params->frame, 0);
+		const float r1 = blueNoiseSampler(blueNoise, x, y, params->frame, 1);
+		const float4 R = (float4)(DiffuseReflectionCosWeighted(r0, r1, N), 1);
+		uint side2;
+		float dist2;
+		const float3 shadingPoint = D * dist + params->E;
+		const float3 shadingPointOffset = shadingPoint + 0.1 * N;
+		const uint voxel2 = TraceRay((float4)(shadingPointOffset, 0), R, &dist2, &side2, grid, uberGrid, BRICKPARAMS, GRIDWIDTH / 12);
+		const float3 N2 = VoxelNormal(side2, R.xyz);
+		float3 toAdd = (float3)skyLightScale, M = N;
+		if (voxel2 != 0) toAdd *= INVPI * ToFloatRGB(voxel2), M = N2;
+		float4 sky;
+		if (M.x < -0.9f) sky = params->skyLight[0];
+		if (M.x > 0.9f) sky = params->skyLight[1];
+		if (M.y < -0.9f) sky = params->skyLight[2];
+		if (M.y > 0.9f) sky = params->skyLight[3];
+		if (M.z < -0.9f) sky = params->skyLight[4];
+		if (M.z > 0.9f) sky = params->skyLight[5];
+		incoming += toAdd * sky.xyz;
+
+		const float3 brdf = ToFloatRGB(voxel) * INVPI;
+		color += incoming * brdf;
 	}
 
 	//if (x == DBX && y == DBY) color = DEBUGCOLOR;
